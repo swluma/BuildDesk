@@ -1131,7 +1131,7 @@ function showScorePopup({ lineCount, points, specialDoubled }, anchorCell) {
   state.scorePopupHandle = setTimeout(() => {
     popupEl.remove();
     state.scorePopupHandle = null;
-  }, 3000);
+  }, 1000);
 }
 
 function animateAndClear(rows, cols, consumedSpecialTiles = []) {
