@@ -629,6 +629,8 @@ body {
   width: min(100%, 440px);
   max-height: min(92vh, 720px);
   overflow: hidden;
+  display: flex;
+  flex-direction: column;
 }
 
 .desired-piece-copy {
@@ -655,7 +657,8 @@ body {
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 6px;
   margin-top: 12px;
-  max-height: min(60vh, 500px);
+  min-height: 0;
+  flex: 1 1 auto;
   overflow-y: auto;
   padding-right: 2px;
 }
@@ -753,6 +756,7 @@ body {
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 10px;
   margin-top: 14px;
+  flex-shrink: 0;
 }
 
 .piece-pool-actions .primary-btn,
@@ -1108,7 +1112,6 @@ body {
   }
 
   .piece-pool-list {
-    max-height: min(54vh, 400px);
     margin-top: 10px;
   }
 }
