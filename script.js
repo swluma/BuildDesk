@@ -1,6 +1,8 @@
 const BOARD_SIZE = 8;
 const MAX_RACK = 3;
-const GAME_DURATION = 180;
+const DEFAULT_GAME_DURATION = 180;
+const MIN_GAME_DURATION = 30;
+const MAX_GAME_DURATION = 600;
 const SPECIAL_SPAWN_CHANCE = 0.05;
 const SPECIAL_TILE_COUNT = 3;
 const RESUME_COUNTDOWN = 3;
@@ -145,6 +147,7 @@ const endTitleEl = document.getElementById('end-title');
 const startBtn = document.getElementById('start-btn');
 const restartBtn = document.getElementById('restart-btn');
 const vsComputerBtn = document.getElementById('vs-computer-btn');
+const prepTimeInputEl = document.getElementById('prep-time-input');
 const pieceSlotTemplate = document.getElementById('piece-slot-template');
 const specialSlotEl = document.getElementById('special-slot');
 const specialHintEl = specialSlotEl.querySelector('.special-hint');
@@ -206,7 +209,8 @@ const state = {
   desiredGridCells: [],
   playerColorThemeIndexes: [0, 1],
   gameActive: false,
-  timeLeft: GAME_DURATION,
+  timeLeft: DEFAULT_GAME_DURATION,
+  prepDuration: DEFAULT_GAME_DURATION,
   timerHandle: null,
   pauseHandle: null,
   skillUiHandle: null,
@@ -307,7 +311,7 @@ function resetState() {
   state.scores = [0, 0];
   state.racks = [[], []];
   state.specialTiles = new Set();
-  state.timeLeft = GAME_DURATION;
+  state.timeLeft = state.prepDuration;
   state.gameActive = false;
   state.activeDrags.forEach(cancelDragVisuals);
   state.activeDrags.clear();
@@ -715,6 +719,25 @@ function updateScores() {
 
 function updateTimer() {
   timerEl.textContent = String(Math.max(0, Math.ceil(state.timeLeft)));
+}
+
+function clampPreparationDuration(value) {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return state.prepDuration;
+  return Math.max(MIN_GAME_DURATION, Math.min(MAX_GAME_DURATION, Math.round(parsed)));
+}
+
+function renderPreparationDuration() {
+  if (prepTimeInputEl) prepTimeInputEl.value = String(state.prepDuration);
+  if (!state.gameActive) {
+    state.timeLeft = state.prepDuration;
+    updateTimer();
+  }
+}
+
+function setPreparationDuration(value) {
+  state.prepDuration = clampPreparationDuration(value);
+  renderPreparationDuration();
 }
 
 function sizeBoardToFit() {
@@ -1711,6 +1734,7 @@ function returnToPreparation() {
   renderModeUi();
   renderDesiredPiecePreviews();
   renderSkillButtons();
+  renderPreparationDuration();
   overlayEl.classList.remove('hidden');
   refreshLayoutMetrics();
 }
@@ -1731,6 +1755,7 @@ function init() {
   renderSkillButtons();
   renderPiecePoolList();
   renderPiecePoolButton();
+  renderPreparationDuration();
   refreshLayoutMetrics();
 }
 
@@ -1748,6 +1773,14 @@ piecePoolBtn.addEventListener('click', openPiecePoolModal);
 vsComputerBtn.addEventListener('click', toggleVsComputer);
 computerDifficultyBtn.addEventListener('click', openDifficultyModal);
 customPieceBtn.addEventListener('click', openCustomPieceModal);
+prepTimeInputEl?.addEventListener('input', (event) => {
+  const digitsOnly = event.target.value.replace(/[^\d]/g, '');
+  event.target.value = digitsOnly;
+  if (digitsOnly) setPreparationDuration(digitsOnly);
+});
+prepTimeInputEl?.addEventListener('blur', () => {
+  renderPreparationDuration();
+});
 skillBtnEls.forEach((btn, player) => {
   btn.addEventListener('click', () => activateDesiredSkill(player));
 });

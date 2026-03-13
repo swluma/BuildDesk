@@ -667,6 +667,73 @@ body {
   height: 84px;
 }
 
+.prep-time-card {
+  margin-top: 12px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+  padding: 12px 14px;
+  border-radius: 18px;
+  background: rgba(8, 18, 28, 0.72);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.prep-time-copy {
+  display: grid;
+  gap: 4px;
+  text-align: left;
+}
+
+.prep-time-label {
+  font-size: 0.8rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  color: #dcebf4;
+  text-transform: uppercase;
+}
+
+.prep-time-hint {
+  font-size: 0.78rem;
+  line-height: 1.3;
+  color: #b7ccd9;
+}
+
+.prep-time-input-wrap {
+  display: inline-grid;
+  grid-template-columns: auto auto;
+  gap: 8px;
+  align-items: center;
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: rgba(22, 36, 52, 0.9);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+}
+
+.prep-time-input {
+  width: 72px;
+  border: none;
+  background: transparent;
+  color: #f3f8fb;
+  font-size: 1rem;
+  font-weight: 900;
+  text-align: right;
+  outline: none;
+}
+
+.prep-time-input::-webkit-outer-spin-button,
+.prep-time-input::-webkit-inner-spin-button {
+  margin: 0;
+}
+
+.prep-time-unit {
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #b7ccd9;
+}
+
 .desired-piece-live-preview {
   width: 100%;
   aspect-ratio: 1 / 1;

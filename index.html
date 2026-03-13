@@ -121,6 +121,25 @@
           ></div>
         </div>
       </div>
+      <div class="prep-time-card">
+        <div class="prep-time-copy">
+          <div class="prep-time-label">Match Time</div>
+          <div class="prep-time-hint">Set the round length before starting.</div>
+        </div>
+        <label class="prep-time-input-wrap" for="prep-time-input">
+          <input
+            id="prep-time-input"
+            class="prep-time-input"
+            type="number"
+            min="30"
+            max="600"
+            step="10"
+            value="180"
+            inputmode="numeric"
+          />
+          <span class="prep-time-unit">sec</span>
+        </label>
+      </div>
       <button id="piece-pool-btn" class="secondary-btn piece-pool-btn" type="button">Piece Types</button>
       <button id="vs-computer-btn" class="secondary-btn mode-btn" type="button">VS Computer: Off</button>
       <button id="start-btn" class="primary-btn">Start Game</button>
