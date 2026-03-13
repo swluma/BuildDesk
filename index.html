@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+  <title>Block Blast Duel</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div id="app" class="app">
+    <header class="top-bar">
+      <div class="brand">BLOCK BLAST DUEL</div>
+      <div class="timer-wrap">
+        <span class="timer-label">TIME</span>
+        <span id="timer" class="timer">180</span>
+      </div>
+    </header>
+
+    <section class="player-zone player-top" data-player="0">
+      <div class="player-header">
+        <div class="player-name">PLAYER 1</div>
+        <div class="score-box">SCORE <span id="score-0">0</span></div>
+      </div>
+      <div id="rack-0" class="piece-rack"></div>
+    </section>
+
+    <main class="arena">
+      <div id="board-shell" class="board-shell">
+        <div id="board" class="board" aria-label="game board"></div>
+        <div id="ghost-layer" class="ghost-layer"></div>
+      </div>
+
+      <aside class="special-area">
+        <div class="special-title">SPECIAL</div>
+        <div id="special-slot" class="special-slot empty">
+          <div class="special-hint">LINE CLEARで出現</div>
+        </div>
+      </aside>
+    </main>
+
+    <section class="player-zone player-bottom" data-player="1">
+      <div class="player-header">
+        <div class="player-name">PLAYER 2</div>
+        <div class="score-box">SCORE <span id="score-1">0</span></div>
+      </div>
+      <div id="rack-1" class="piece-rack"></div>
+    </section>
+  </div>
+
+  <div id="overlay" class="overlay show">
+    <div class="overlay-card intro-card">
+      <h1>BLOCK BLAST DUEL</h1>
+      <p>上下のプレイヤーが同じ盤を奪い合うスピード対戦。</p>
+      <p>ピースを長押しして盤へスライド、離して配置。</p>
+      <button id="start-btn" class="primary-btn">ゲーム開始</button>
+    </div>
+  </div>
+
+  <div id="countdown-overlay" class="overlay hidden">
+    <div class="overlay-card countdown-card">
+      <div id="countdown-title" class="countdown-title">START</div>
+      <div id="countdown-number" class="countdown-number">3</div>
+    </div>
+  </div>
+
+  <div id="pause-overlay" class="overlay hidden pause-overlay">
+    <div class="overlay-card pause-card">
+      <div id="pause-title" class="pause-title">STUCK!</div>
+      <div id="pause-message" class="pause-message">Player 1 score halved</div>
+      <div id="pause-resume" class="pause-resume">3</div>
+    </div>
+  </div>
+
+  <div id="end-overlay" class="overlay hidden">
+    <div class="overlay-card end-card">
+      <h2 id="end-title">GAME OVER</h2>
+      <div id="end-summary" class="end-summary"></div>
+      <button id="restart-btn" class="primary-btn">もう一度</button>
+    </div>
+  </div>
+
+  <template id="piece-slot-template">
+    <div class="piece-slot">
+      <div class="slot-glow"></div>
+      <div class="piece-canvas"></div>
+    </div>
+  </template>
+
+  <script src="script.js"></script>
+</body>
+</html>
