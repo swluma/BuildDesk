@@ -21,7 +21,7 @@
 
     <section class="player-zone player-top" data-player="0">
       <div class="player-header">
-        <div class="player-name">PLAYER 1</div>
+        <div id="player-name-0" class="player-name">PLAYER 1</div>
         <div class="score-box">SCORE <span id="score-0">0</span></div>
       </div>
       <div id="rack-0" class="piece-rack"></div>
@@ -46,7 +46,7 @@
 
     <section class="player-zone player-bottom" data-player="1">
       <div class="player-header">
-        <div class="player-name">PLAYER 2</div>
+        <div id="player-name-1" class="player-name">PLAYER 2</div>
         <div class="score-box">SCORE <span id="score-1">0</span></div>
       </div>
       <div id="rack-1" class="piece-rack"></div>
@@ -77,7 +77,7 @@
         </div>
         <div class="prep-player-card">
           <div class="prep-player-meta">
-            <div class="prep-player-label">PLAYER 2</div>
+            <div id="prep-player-label-1" class="prep-player-label">PLAYER 2</div>
             <button
               id="desired-piece-btn-1"
               class="secondary-btn desired-piece-btn"
@@ -93,6 +93,7 @@
         </div>
       </div>
       <button id="piece-pool-btn" class="secondary-btn piece-pool-btn" type="button">Piece Types</button>
+      <button id="vs-computer-btn" class="secondary-btn mode-btn" type="button">VS Computer: Off</button>
       <button id="start-btn" class="primary-btn">Start Game</button>
     </div>
   </div>

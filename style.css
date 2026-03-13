@@ -610,8 +610,17 @@ body {
   margin: 0;
 }
 
-.piece-pool-btn {
+.piece-pool-btn,
+.mode-btn {
   margin-top: 12px;
+}
+
+.mode-btn.active {
+  border-color: rgba(141, 255, 117, 0.45);
+  background:
+    radial-gradient(circle at top left, rgba(141, 255, 117, 0.14), transparent 58%),
+    rgba(22, 36, 52, 0.9);
+  color: #dfffd3;
 }
 
 .countdown-card,
@@ -643,6 +652,18 @@ body {
   margin: 8px 0 0;
   color: #d3e4ef;
   line-height: 1.4;
+}
+
+.piece-slot.computer-controlled::after {
+  content: "CPU";
+  position: absolute;
+  top: 8px;
+  right: 10px;
+  font-size: 0.68rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  color: rgba(244, 251, 255, 0.72);
+  pointer-events: none;
 }
 
 .piece-pool-summary {

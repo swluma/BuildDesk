@@ -11,6 +11,8 @@ const DESIRED_MAX_BLOCKS = 5;
 const DESIRED_SKILL_COST = 15;
 const DESIRED_SKILL_COOLDOWN_MS = 15000;
 const MAX_CUSTOM_PIECES = 10;
+const COMPUTER_PLAYER = 0;
+const COMPUTER_MOVE_DELAY_MS = 3000;
 
 const COLORS = [
   '#62d8ff', '#ff7da7', '#ffd36b', '#a78bff', '#6ff1b8', '#ff9f50', '#82f06d', '#4fd2ff', '#ff89f3'
@@ -60,13 +62,22 @@ const endSummaryEl = document.getElementById('end-summary');
 const endTitleEl = document.getElementById('end-title');
 const startBtn = document.getElementById('start-btn');
 const restartBtn = document.getElementById('restart-btn');
+const vsComputerBtn = document.getElementById('vs-computer-btn');
 const pieceSlotTemplate = document.getElementById('piece-slot-template');
 const specialSlotEl = document.getElementById('special-slot');
 const specialHintEl = specialSlotEl.querySelector('.special-hint');
 const skillBtnEls = [document.getElementById('skill-btn-0'), document.getElementById('skill-btn-1')];
+const playerNameEls = [
+  document.getElementById('player-name-0'),
+  document.getElementById('player-name-1'),
+];
 const desiredPieceBtnEls = [
   document.getElementById('desired-piece-btn-0'),
   document.getElementById('desired-piece-btn-1'),
+];
+const prepPlayerLabelEls = [
+  null,
+  document.getElementById('prep-player-label-1'),
 ];
 const desiredPiecePreviewEls = [
   document.getElementById('desired-piece-preview-0'),
@@ -110,6 +121,8 @@ const state = {
   skillUiHandle: null,
   boardMetrics: null,
   scorePopupHandle: null,
+  vsComputer: false,
+  computerMoveHandle: null,
 };
 
 function randomItem(arr) {
@@ -197,14 +210,29 @@ function resetState() {
   if (state.pauseHandle) clearInterval(state.pauseHandle);
   if (state.skillUiHandle) clearInterval(state.skillUiHandle);
   if (state.scorePopupHandle) clearTimeout(state.scorePopupHandle);
+  if (state.computerMoveHandle) clearTimeout(state.computerMoveHandle);
   state.timerHandle = null;
   state.pauseHandle = null;
   state.skillUiHandle = null;
   state.scorePopupHandle = null;
+  state.computerMoveHandle = null;
   state.skillCooldownEndsAt = [0, 0];
   scorePopupLayerEl.innerHTML = '';
   updateTimer();
   updateScores();
+}
+
+function isComputerPlayer(player) {
+  return state.vsComputer && player === COMPUTER_PLAYER;
+}
+
+function getPlayerDisplayName(player) {
+  if (isComputerPlayer(player)) return 'COMPUTER';
+  return state.vsComputer && player === 1 ? 'PLAYER' : `PLAYER ${player + 1}`;
+}
+
+function getSkillLabel(player) {
+  return isComputerPlayer(player) ? 'CPU Desired' : `P${player + 1} Desired`;
 }
 
 function initAllowedShapes() {
@@ -375,12 +403,28 @@ function renderMiniPiece(targetEl, piece, slotSize, { forceEnabled = false } = {
 
 function renderDesiredPiecePreviews() {
   desiredPiecePreviewEls.forEach((previewEl, player) => {
+    previewEl.setAttribute('aria-label', `${getPlayerDisplayName(player).toLowerCase()} desired piece`);
     renderMiniPiece(previewEl, state.desiredPieces[player], getRenderSlotSize(previewEl, 68), { forceEnabled: true });
   });
 }
 
 function renderPiecePoolButton() {
   piecePoolBtn.textContent = `Piece Types (${state.allowedShapeIds.size}/${getAllShapeDefs().length})`;
+}
+
+function renderModeUi() {
+  playerNameEls.forEach((el, player) => {
+    el.textContent = getPlayerDisplayName(player);
+  });
+  if (prepPlayerLabelEls[1]) {
+    prepPlayerLabelEls[1].textContent = state.vsComputer ? 'PLAYER' : 'PLAYER 2';
+  }
+  const computerSetupLabel = state.vsComputer ? 'Computer Piece' : 'Desired Piece';
+  const humanSetupLabel = state.vsComputer ? 'Your Piece' : 'Desired Piece';
+  desiredPieceBtnEls[0].textContent = computerSetupLabel;
+  desiredPieceBtnEls[1].textContent = humanSetupLabel;
+  vsComputerBtn.textContent = `VS Computer: ${state.vsComputer ? 'On' : 'Off'}`;
+  vsComputerBtn.classList.toggle('active', state.vsComputer);
 }
 
 function renderPiecePoolList() {
@@ -402,13 +446,13 @@ function renderSkillButtons() {
     const cooldownMs = Math.max(0, state.skillCooldownEndsAt[player] - now);
     const cooldownSeconds = cooldownMs / 1000;
     const handTurns = cooldownMs > 0 ? cooldownMs / DESIRED_SKILL_COOLDOWN_MS : 0;
-    const canUse = state.gameActive && cooldownMs <= 0 && score >= DESIRED_SKILL_COST;
+    const canUse = !isComputerPlayer(player) && state.gameActive && cooldownMs <= 0 && score >= DESIRED_SKILL_COST;
 
     btn.disabled = !canUse;
     btn.classList.toggle('cooldown-active', cooldownMs > 0);
     btn.classList.toggle('insufficient-score', state.gameActive && cooldownMs <= 0 && score < DESIRED_SKILL_COST);
     btn.innerHTML = `
-      <span class="skill-btn-label">P${player + 1} Desired</span>
+      <span class="skill-btn-label">${getSkillLabel(player)}</span>
       <span class="skill-btn-cost">-${DESIRED_SKILL_COST}</span>
       ${cooldownMs > 0 ? `
         <span class="skill-watch" aria-hidden="true">
@@ -431,14 +475,16 @@ function startSkillUiLoop() {
 
 function renderRacks() {
   state.slotEls.forEach((slots, player) => {
+    const computerControlled = isComputerPlayer(player);
     slots.forEach((slotEl, slotIndex) => {
       const canvas = slotEl.querySelector('.piece-canvas');
       const piece = state.racks[player][slotIndex] || null;
       const disabled = isPieceDisabled(piece);
       slotEl.dataset.pieceId = piece ? piece.id : '';
-      slotEl.classList.toggle('disabled', disabled);
+      slotEl.classList.toggle('computer-controlled', computerControlled);
+      slotEl.classList.toggle('disabled', disabled || computerControlled);
       renderMiniPiece(canvas, piece, Math.min(slotEl.clientWidth, slotEl.clientHeight));
-      if (piece && !disabled) attachPiecePointer(slotEl, piece, { sourceType: 'rack', player, slotIndex });
+      if (piece && !disabled && !computerControlled) attachPiecePointer(slotEl, piece, { sourceType: 'rack', player, slotIndex });
       else slotEl.onpointerdown = null;
     });
   });
@@ -743,6 +789,142 @@ function scoreForClear(rows, cols) {
   };
 }
 
+function cloneBoard(board = state.board) {
+  return board.map((row) => row.map((cell) => (cell ? { ...cell } : null)));
+}
+
+function canPlacePieceOnBoard(board, piece, x, y) {
+  return piece.cells.every(([dx, dy]) => {
+    const px = x + dx;
+    const py = y + dy;
+    return px >= 0 && px < BOARD_SIZE && py >= 0 && py < BOARD_SIZE && !board[py][px];
+  });
+}
+
+function getClearInfoForBoard(board) {
+  const rows = [];
+  const cols = [];
+  for (let y = 0; y < BOARD_SIZE; y += 1) {
+    if (board[y].every(Boolean)) rows.push(y);
+  }
+  for (let x = 0; x < BOARD_SIZE; x += 1) {
+    let full = true;
+    for (let y = 0; y < BOARD_SIZE; y += 1) {
+      if (!board[y][x]) {
+        full = false;
+        break;
+      }
+    }
+    if (full) cols.push(x);
+  }
+  return { rows, cols };
+}
+
+function scoreForClearOnBoard(board, specialTiles, rows, cols) {
+  const clearSet = new Set();
+  rows.forEach((y) => {
+    for (let x = 0; x < BOARD_SIZE; x += 1) clearSet.add(`${x},${y}`);
+  });
+  cols.forEach((x) => {
+    for (let y = 0; y < BOARD_SIZE; y += 1) clearSet.add(`${x},${y}`);
+  });
+
+  let baseScore = 0;
+  const consumedSpecialTiles = [];
+  clearSet.forEach((key) => {
+    const [x, y] = key.split(',').map(Number);
+    const cell = board[y][x];
+    if (!cell) return;
+    baseScore += 1;
+    if (specialTiles.has(key)) consumedSpecialTiles.push(key);
+  });
+
+  const lineCount = rows.length + cols.length;
+  const specialDoubled = consumedSpecialTiles.length > 0;
+  return {
+    points: baseScore * lineCount * (specialDoubled ? 2 : 1),
+    lineCount,
+    specialDoubled,
+    consumedSpecialTiles,
+  };
+}
+
+function countPlacementsOnBoard(board, piece) {
+  let count = 0;
+  for (let y = 0; y < BOARD_SIZE; y += 1) {
+    for (let x = 0; x < BOARD_SIZE; x += 1) {
+      if (canPlacePieceOnBoard(board, piece, x, y)) count += 1;
+    }
+  }
+  return count;
+}
+
+function evaluatePlacement(piece, x, y) {
+  const simulatedBoard = cloneBoard();
+  piece.cells.forEach(([dx, dy]) => {
+    simulatedBoard[y + dy][x + dx] = { previewColor: piece.previewColor };
+  });
+
+  const clearInfo = getClearInfoForBoard(simulatedBoard);
+  const scoreResult = (clearInfo.rows.length || clearInfo.cols.length)
+    ? scoreForClearOnBoard(simulatedBoard, state.specialTiles, clearInfo.rows, clearInfo.cols)
+    : { points: 0, lineCount: 0, specialDoubled: false, consumedSpecialTiles: [] };
+
+  clearInfo.rows.forEach((row) => {
+    for (let col = 0; col < BOARD_SIZE; col += 1) simulatedBoard[row][col] = null;
+  });
+  clearInfo.cols.forEach((col) => {
+    for (let row = 0; row < BOARD_SIZE; row += 1) simulatedBoard[row][col] = null;
+  });
+
+  let occupiedCells = 0;
+  for (let row = 0; row < BOARD_SIZE; row += 1) {
+    for (let col = 0; col < BOARD_SIZE; col += 1) {
+      if (simulatedBoard[row][col]) occupiedCells += 1;
+    }
+  }
+
+  const futurePlacements = state.racks[COMPUTER_PLAYER]
+    .filter((candidate) => candidate && candidate.id !== piece.id)
+    .reduce((total, candidate) => total + countPlacementsOnBoard(simulatedBoard, candidate), 0);
+
+  return {
+    piece,
+    x,
+    y,
+    immediateScore: 1 + scoreResult.points,
+    lineCount: scoreResult.lineCount,
+    occupiedCells,
+    futurePlacements,
+  };
+}
+
+function pickBestComputerMove() {
+  const moves = [];
+  state.racks[COMPUTER_PLAYER].forEach((piece) => {
+    if (!piece) return;
+    for (let y = 0; y < BOARD_SIZE; y += 1) {
+      for (let x = 0; x < BOARD_SIZE; x += 1) {
+        if (canPlacePiece(piece, x, y)) moves.push(evaluatePlacement(piece, x, y));
+      }
+    }
+  });
+
+  if (!moves.length) return null;
+
+  moves.sort((a, b) => (
+    b.immediateScore - a.immediateScore
+    || b.lineCount - a.lineCount
+    || b.futurePlacements - a.futurePlacements
+    || a.occupiedCells - b.occupiedCells
+    || b.piece.cells.length - a.piece.cells.length
+    || a.y - b.y
+    || a.x - b.x
+  ));
+
+  return moves[0];
+}
+
 function getPopupAnchorCell(piece, x, y) {
   const anchorCell = piece.cells[piece.cells.length - 1] || [0, 0];
   return { x: x + anchorCell[0], y: y + anchorCell[1] };
@@ -847,6 +1029,39 @@ function refillSource(source) {
   renderRacks();
 }
 
+function clearComputerMoveTimer() {
+  if (!state.computerMoveHandle) return;
+  clearTimeout(state.computerMoveHandle);
+  state.computerMoveHandle = null;
+}
+
+function scheduleComputerMove() {
+  clearComputerMoveTimer();
+  if (!state.gameActive || !state.vsComputer) return;
+  state.computerMoveHandle = setTimeout(() => {
+    state.computerMoveHandle = null;
+    runComputerTurn();
+  }, COMPUTER_MOVE_DELAY_MS);
+}
+
+function runComputerTurn() {
+  if (!state.gameActive || !state.vsComputer) return;
+  const move = pickBestComputerMove();
+  if (!move) return;
+
+  const slotIndex = state.racks[COMPUTER_PLAYER].findIndex((piece) => piece?.id === move.piece.id);
+  if (slotIndex < 0) return;
+  const originEl = state.slotEls[COMPUTER_PLAYER][slotIndex];
+  if (!originEl) return;
+
+  placeDraggedPiece({
+    piece: move.piece,
+    candidate: { x: move.x, y: move.y },
+    source: { sourceType: 'rack', player: COMPUTER_PLAYER, slotIndex },
+    originEl,
+  });
+}
+
 function placeDraggedPiece(drag) {
   const { x, y } = drag.candidate;
   const scoringPlayer = drag.source.player;
@@ -870,6 +1085,7 @@ function placeDraggedPiece(drag) {
 
   refillSource(drag.source);
   setTimeout(() => checkForStuckAfterMove(drag.source.player), 240);
+  if (isComputerPlayer(scoringPlayer) || state.vsComputer) scheduleComputerMove();
 }
 
 function checkForStuckAfterMove(triggerPlayer) {
@@ -900,9 +1116,10 @@ function clearBoardAndRefreshPieces() {
 
 function handleStuck(triggerPlayer) {
   state.gameActive = false;
+  clearComputerMoveTimer();
   state.scores[triggerPlayer] = Math.floor(state.scores[triggerPlayer] / 2);
   updateScores();
-  showPauseOverlay(`Player ${triggerPlayer + 1} caused a jam. Score halved!`);
+  showPauseOverlay(`${getPlayerDisplayName(triggerPlayer)} caused a jam. Score halved!`);
   clearBoardAndRefreshPieces();
 
   let remaining = RESUME_COUNTDOWN;
@@ -917,6 +1134,7 @@ function handleStuck(triggerPlayer) {
     state.pauseHandle = null;
     hidePauseOverlay();
     state.gameActive = true;
+    scheduleComputerMove();
   }, 1000);
 }
 
@@ -952,6 +1170,7 @@ function startTimerLoop() {
 
 function endGame() {
   state.gameActive = false;
+  clearComputerMoveTimer();
   if (state.timerHandle) clearInterval(state.timerHandle);
   if (state.skillUiHandle) clearInterval(state.skillUiHandle);
   state.timerHandle = null;
@@ -959,14 +1178,22 @@ function endGame() {
   renderSkillButtons();
   const [a, b] = state.scores;
   let title = 'DRAW';
-  if (a > b) title = 'PLAYER 1 WINS';
-  else if (b > a) title = 'PLAYER 2 WINS';
+  if (a > b) title = `${getPlayerDisplayName(0)} WINS`;
+  else if (b > a) title = `${getPlayerDisplayName(1)} WINS`;
   endTitleEl.textContent = title;
   endSummaryEl.innerHTML = `
-    <div>Player 1: <strong>${Math.floor(a)}</strong></div>
-    <div>Player 2: <strong>${Math.floor(b)}</strong></div>
+    <div>${getPlayerDisplayName(0)}: <strong>${Math.floor(a)}</strong></div>
+    <div>${getPlayerDisplayName(1)}: <strong>${Math.floor(b)}</strong></div>
   `;
   endOverlayEl.classList.remove('hidden');
+}
+
+function toggleVsComputer() {
+  state.vsComputer = !state.vsComputer;
+  renderModeUi();
+  renderDesiredPiecePreviews();
+  renderSkillButtons();
+  renderRacks();
 }
 
 function centerCellsInEditor(cells) {
@@ -1127,6 +1354,7 @@ function removeCustomShape(shapeId) {
 
 function activateDesiredSkill(player) {
   if (!state.gameActive) return;
+  if (isComputerPlayer(player)) return;
   if (Math.floor(state.scores[player]) < DESIRED_SKILL_COST) return;
   if (Date.now() < state.skillCooldownEndsAt[player]) return;
   state.scores[player] -= DESIRED_SKILL_COST;
@@ -1152,6 +1380,7 @@ function startGameFlow() {
   renderBoard();
   renderRacks();
   renderSpecialSlot();
+  renderModeUi();
   renderDesiredPiecePreviews();
   refreshLayoutMetrics();
   startVisibleCountdown('START', 3, () => {
@@ -1159,6 +1388,7 @@ function startGameFlow() {
     startSkillUiLoop();
     renderSkillButtons();
     startTimerLoop();
+    scheduleComputerMove();
   });
 }
 
@@ -1170,6 +1400,7 @@ function returnToPreparation() {
   renderBoard();
   renderRacks();
   renderSpecialSlot();
+  renderModeUi();
   renderDesiredPiecePreviews();
   renderSkillButtons();
   overlayEl.classList.remove('hidden');
@@ -1186,6 +1417,7 @@ function init() {
   renderBoard();
   renderRacks();
   renderSpecialSlot();
+  renderModeUi();
   renderSkillButtons();
   renderPiecePoolList();
   renderPiecePoolButton();
@@ -1196,6 +1428,7 @@ desiredPieceBtnEls.forEach((btn, player) => {
   btn.addEventListener('click', () => openDesiredPieceModal(player));
 });
 piecePoolBtn.addEventListener('click', openPiecePoolModal);
+vsComputerBtn.addEventListener('click', toggleVsComputer);
 customPieceBtn.addEventListener('click', openCustomPieceModal);
 skillBtnEls.forEach((btn, player) => {
   btn.addEventListener('click', () => activateDesiredSkill(player));
