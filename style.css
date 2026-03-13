@@ -634,6 +634,12 @@ body {
   overflow-y: auto;
 }
 
+.difficulty-card {
+  width: min(100%, 430px);
+  max-height: min(92vh, 680px);
+  overflow-y: auto;
+}
+
 .piece-pool-card {
   width: min(100%, 440px);
   max-height: min(92vh, 720px);
@@ -654,6 +660,20 @@ body {
   line-height: 1.4;
 }
 
+.difficulty-copy {
+  margin: 8px 0 0;
+  color: #d3e4ef;
+  line-height: 1.4;
+}
+
+.prep-extra-btn.hidden {
+  display: none;
+}
+
+.prep-extra-btn {
+  margin: 0;
+}
+
 .piece-slot.computer-controlled::after {
   content: "CPU";
   position: absolute;
@@ -671,6 +691,54 @@ body {
   font-size: 0.82rem;
   font-weight: 800;
   color: #b7ccd9;
+}
+
+.difficulty-list {
+  display: grid;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.difficulty-option {
+  width: 100%;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 16px;
+  padding: 14px 14px 13px;
+  background: rgba(10, 19, 29, 0.82);
+  color: var(--text);
+  text-align: left;
+}
+
+.difficulty-option.active {
+  border-color: rgba(141, 255, 117, 0.42);
+  background:
+    radial-gradient(circle at top left, rgba(141, 255, 117, 0.14), transparent 60%),
+    rgba(16, 28, 41, 0.94);
+  box-shadow: 0 0 0 1px rgba(141, 255, 117, 0.12);
+}
+
+.difficulty-option-title {
+  font-size: 0.88rem;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+}
+
+.difficulty-option-meta {
+  margin-top: 4px;
+  font-size: 0.74rem;
+  font-weight: 800;
+  color: #b7ccd9;
+}
+
+.difficulty-option-copy {
+  margin-top: 7px;
+  font-size: 0.82rem;
+  line-height: 1.4;
+  color: #d8e5ed;
+}
+
+.difficulty-actions {
+  margin-top: 14px;
 }
 
 .piece-pool-list {

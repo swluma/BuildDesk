@@ -61,13 +61,18 @@
       <div class="prep-config" aria-label="desired piece setup">
         <div class="prep-player-card">
           <div class="prep-player-meta">
-            <div class="prep-player-label">PLAYER 1</div>
+            <div id="prep-player-label-0" class="prep-player-label">PLAYER 1</div>
             <button
               id="desired-piece-btn-0"
               class="secondary-btn desired-piece-btn"
               type="button"
               data-player="0"
             >Desired Piece</button>
+            <button
+              id="computer-difficulty-btn"
+              class="secondary-btn prep-extra-btn hidden"
+              type="button"
+            >Difficulty: Normal</button>
           </div>
           <div
             id="desired-piece-preview-0"
@@ -144,6 +149,23 @@
       <h2 id="end-title">GAME OVER</h2>
       <div id="end-summary" class="end-summary"></div>
       <button id="restart-btn" class="primary-btn">Play Again</button>
+    </div>
+  </div>
+
+  <div
+    id="difficulty-modal"
+    class="overlay hidden difficulty-modal"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="difficulty-modal-title"
+  >
+    <div class="overlay-card difficulty-card">
+      <h2 id="difficulty-modal-title">COMPUTER DIFFICULTY</h2>
+      <p class="difficulty-copy">Choose how fast and how intelligently the computer plays.</p>
+      <div id="difficulty-list" class="difficulty-list" aria-label="computer difficulty options"></div>
+      <div class="difficulty-actions">
+        <button id="difficulty-close" class="primary-btn" type="button">Done</button>
+      </div>
     </div>
   </div>
 

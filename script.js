@@ -12,7 +12,41 @@ const DESIRED_SKILL_COST = 15;
 const DESIRED_SKILL_COOLDOWN_MS = 15000;
 const MAX_CUSTOM_PIECES = 10;
 const COMPUTER_PLAYER = 0;
-const COMPUTER_MOVE_DELAY_MS = 3000;
+
+const COMPUTER_DIFFICULTIES = {
+  easy: {
+    label: 'Easy',
+    intervalMs: 5000,
+    allowDesiredSkill: false,
+    considerSpecialTiles: false,
+    selection: 'easy',
+    description: 'Slow and forgiving. Uses regular pieces only.',
+  },
+  normal: {
+    label: 'Normal',
+    intervalMs: 4000,
+    allowDesiredSkill: true,
+    considerSpecialTiles: false,
+    selection: 'normal',
+    description: 'Solid scoring with occasional desired-piece use.',
+  },
+  hard: {
+    label: 'Hard',
+    intervalMs: 3000,
+    allowDesiredSkill: true,
+    considerSpecialTiles: true,
+    selection: 'hard',
+    description: 'Strong scoring and special-tile awareness.',
+  },
+  insane: {
+    label: 'Insane',
+    intervalMs: 2000,
+    allowDesiredSkill: true,
+    considerSpecialTiles: true,
+    selection: 'insane',
+    description: 'Fastest pace with strongest current-board play.',
+  },
+};
 
 const COLORS = [
   '#62d8ff', '#ff7da7', '#ffd36b', '#a78bff', '#6ff1b8', '#ff9f50', '#82f06d', '#4fd2ff', '#ff89f3'
@@ -76,7 +110,7 @@ const desiredPieceBtnEls = [
   document.getElementById('desired-piece-btn-1'),
 ];
 const prepPlayerLabelEls = [
-  null,
+  document.getElementById('prep-player-label-0'),
   document.getElementById('prep-player-label-1'),
 ];
 const desiredPiecePreviewEls = [
@@ -98,6 +132,10 @@ const piecePoolSummaryEl = document.getElementById('piece-pool-summary');
 const piecePoolListEl = document.getElementById('piece-pool-list');
 const customPieceBtn = document.getElementById('custom-piece-btn');
 const piecePoolCloseBtn = document.getElementById('piece-pool-close');
+const computerDifficultyBtn = document.getElementById('computer-difficulty-btn');
+const difficultyModalEl = document.getElementById('difficulty-modal');
+const difficultyListEl = document.getElementById('difficulty-list');
+const difficultyCloseBtn = document.getElementById('difficulty-close');
 
 const state = {
   board: [],
@@ -123,6 +161,7 @@ const state = {
   scorePopupHandle: null,
   vsComputer: false,
   computerMoveHandle: null,
+  computerDifficulty: 'normal',
 };
 
 function randomItem(arr) {
@@ -233,6 +272,14 @@ function getPlayerDisplayName(player) {
 
 function getSkillLabel(player) {
   return isComputerPlayer(player) ? 'CPU Desired' : `P${player + 1} Desired`;
+}
+
+function getComputerDifficultyConfig() {
+  return COMPUTER_DIFFICULTIES[state.computerDifficulty] || COMPUTER_DIFFICULTIES.normal;
+}
+
+function getComputerDifficultyLabel() {
+  return getComputerDifficultyConfig().label;
 }
 
 function initAllowedShapes() {
@@ -346,6 +393,41 @@ function buildPiecePoolList() {
   });
 }
 
+function buildDifficultyList() {
+  difficultyListEl.innerHTML = '';
+  Object.entries(COMPUTER_DIFFICULTIES).forEach(([key, config]) => {
+    const optionEl = document.createElement('button');
+    optionEl.type = 'button';
+    optionEl.className = 'difficulty-option';
+    optionEl.classList.toggle('active', key === state.computerDifficulty);
+    optionEl.setAttribute('aria-pressed', String(key === state.computerDifficulty));
+    optionEl.addEventListener('click', () => {
+      state.computerDifficulty = key;
+      renderModeUi();
+      buildDifficultyList();
+      if (state.vsComputer && state.gameActive) {
+        clearComputerMoveTimer();
+        scheduleComputerMove();
+      }
+    });
+
+    const titleEl = document.createElement('div');
+    titleEl.className = 'difficulty-option-title';
+    titleEl.textContent = config.label.toUpperCase();
+
+    const metaEl = document.createElement('div');
+    metaEl.className = 'difficulty-option-meta';
+    metaEl.textContent = `${(config.intervalMs / 1000).toFixed(0)}s per move`;
+
+    const copyEl = document.createElement('div');
+    copyEl.className = 'difficulty-option-copy';
+    copyEl.textContent = config.description;
+
+    optionEl.append(titleEl, metaEl, copyEl);
+    difficultyListEl.appendChild(optionEl);
+  });
+}
+
 function fillAllRacks() {
   for (let player = 0; player < 2; player += 1) {
     state.racks[player] = Array.from({ length: MAX_RACK }, () => makePiece());
@@ -416,13 +498,14 @@ function renderModeUi() {
   playerNameEls.forEach((el, player) => {
     el.textContent = getPlayerDisplayName(player);
   });
-  if (prepPlayerLabelEls[1]) {
-    prepPlayerLabelEls[1].textContent = state.vsComputer ? 'PLAYER' : 'PLAYER 2';
-  }
+  if (prepPlayerLabelEls[0]) prepPlayerLabelEls[0].textContent = state.vsComputer ? 'COMPUTER' : 'PLAYER 1';
+  if (prepPlayerLabelEls[1]) prepPlayerLabelEls[1].textContent = state.vsComputer ? 'PLAYER' : 'PLAYER 2';
   const computerSetupLabel = state.vsComputer ? 'Computer Piece' : 'Desired Piece';
   const humanSetupLabel = state.vsComputer ? 'Your Piece' : 'Desired Piece';
   desiredPieceBtnEls[0].textContent = computerSetupLabel;
   desiredPieceBtnEls[1].textContent = humanSetupLabel;
+  computerDifficultyBtn.classList.toggle('hidden', !state.vsComputer);
+  computerDifficultyBtn.textContent = `Difficulty: ${getComputerDifficultyLabel()}`;
   vsComputerBtn.textContent = `VS Computer: ${state.vsComputer ? 'On' : 'Off'}`;
   vsComputerBtn.classList.toggle('active', state.vsComputer);
 }
@@ -859,7 +942,10 @@ function countPlacementsOnBoard(board, piece) {
   return count;
 }
 
-function evaluatePlacement(piece, x, y) {
+function evaluatePlacement(piece, x, y, {
+  rack = state.racks[COMPUTER_PLAYER],
+  specialTiles = state.specialTiles,
+} = {}) {
   const simulatedBoard = cloneBoard();
   piece.cells.forEach(([dx, dy]) => {
     simulatedBoard[y + dy][x + dx] = { previewColor: piece.previewColor };
@@ -867,7 +953,7 @@ function evaluatePlacement(piece, x, y) {
 
   const clearInfo = getClearInfoForBoard(simulatedBoard);
   const scoreResult = (clearInfo.rows.length || clearInfo.cols.length)
-    ? scoreForClearOnBoard(simulatedBoard, state.specialTiles, clearInfo.rows, clearInfo.cols)
+    ? scoreForClearOnBoard(simulatedBoard, specialTiles, clearInfo.rows, clearInfo.cols)
     : { points: 0, lineCount: 0, specialDoubled: false, consumedSpecialTiles: [] };
 
   clearInfo.rows.forEach((row) => {
@@ -884,7 +970,7 @@ function evaluatePlacement(piece, x, y) {
     }
   }
 
-  const futurePlacements = state.racks[COMPUTER_PLAYER]
+  const futurePlacements = rack
     .filter((candidate) => candidate && candidate.id !== piece.id)
     .reduce((total, candidate) => total + countPlacementsOnBoard(simulatedBoard, candidate), 0);
 
@@ -894,35 +980,112 @@ function evaluatePlacement(piece, x, y) {
     y,
     immediateScore: 1 + scoreResult.points,
     lineCount: scoreResult.lineCount,
+    specialCount: scoreResult.consumedSpecialTiles.length,
     occupiedCells,
     futurePlacements,
   };
 }
 
-function pickBestComputerMove() {
+function compareComputerMoves(a, b, config) {
+  if (!a) return 1;
+  if (!b) return -1;
+  if (config.selection === 'easy') {
+    return (
+      a.immediateScore - b.immediateScore
+      || a.lineCount - b.lineCount
+      || b.occupiedCells - a.occupiedCells
+      || a.futurePlacements - b.futurePlacements
+      || a.y - b.y
+      || a.x - b.x
+    );
+  }
+  if (config.selection === 'insane') {
+    return (
+      b.immediateScore - a.immediateScore
+      || b.lineCount - a.lineCount
+      || b.specialCount - a.specialCount
+      || b.futurePlacements - a.futurePlacements
+      || a.occupiedCells - b.occupiedCells
+      || b.piece.cells.length - a.piece.cells.length
+      || a.y - b.y
+      || a.x - b.x
+    );
+  }
+  return (
+    b.immediateScore - a.immediateScore
+    || b.lineCount - a.lineCount
+    || b.futurePlacements - a.futurePlacements
+    || b.specialCount - a.specialCount
+    || a.occupiedCells - b.occupiedCells
+    || b.piece.cells.length - a.piece.cells.length
+    || a.y - b.y
+    || a.x - b.x
+  );
+}
+
+function pickBestComputerMoveForRack(rack, {
+  useSkill = false,
+  config = getComputerDifficultyConfig(),
+} = {}) {
   const moves = [];
-  state.racks[COMPUTER_PLAYER].forEach((piece) => {
+  const specialTiles = config.considerSpecialTiles ? state.specialTiles : new Set();
+  rack.forEach((piece, slotIndex) => {
     if (!piece) return;
     for (let y = 0; y < BOARD_SIZE; y += 1) {
       for (let x = 0; x < BOARD_SIZE; x += 1) {
-        if (canPlacePiece(piece, x, y)) moves.push(evaluatePlacement(piece, x, y));
+        if (!canPlacePiece(piece, x, y)) continue;
+        moves.push({
+          ...evaluatePlacement(piece, x, y, { rack, specialTiles }),
+          slotIndex,
+          useSkill,
+        });
       }
     }
   });
 
   if (!moves.length) return null;
 
-  moves.sort((a, b) => (
-    b.immediateScore - a.immediateScore
-    || b.lineCount - a.lineCount
-    || b.futurePlacements - a.futurePlacements
-    || a.occupiedCells - b.occupiedCells
-    || b.piece.cells.length - a.piece.cells.length
-    || a.y - b.y
-    || a.x - b.x
-  ));
+  moves.sort((a, b) => compareComputerMoves(a, b, config));
 
+  if (config.selection === 'easy') {
+    const poolSize = Math.max(1, Math.min(moves.length, 6));
+    return randomItem(moves.slice(0, poolSize));
+  }
+  if (config.selection === 'normal') {
+    const poolSize = Math.max(1, Math.min(moves.length, 3));
+    return randomItem(moves.slice(0, poolSize));
+  }
+  if (config.selection === 'hard') {
+    const poolSize = Math.max(1, Math.min(moves.length, 2));
+    return randomItem(moves.slice(0, poolSize));
+  }
   return moves[0];
+}
+
+function canUseDesiredSkill(player, { allowComputer = false } = {}) {
+  if (!state.gameActive) return false;
+  if (!allowComputer && isComputerPlayer(player)) return false;
+  if (Math.floor(state.scores[player]) < DESIRED_SKILL_COST) return false;
+  if (Date.now() < state.skillCooldownEndsAt[player]) return false;
+  return true;
+}
+
+function getComputerMovePlan() {
+  const config = getComputerDifficultyConfig();
+  const currentRack = state.racks[COMPUTER_PLAYER];
+  const regularMove = pickBestComputerMoveForRack(currentRack, { config, useSkill: false });
+  if (!config.allowDesiredSkill || !canUseDesiredSkill(COMPUTER_PLAYER, { allowComputer: true })) {
+    return regularMove;
+  }
+
+  const desiredSlotIndex = Math.floor(MAX_RACK / 2);
+  const skillRack = currentRack.map((piece, index) => (
+    index === desiredSlotIndex ? makeDesiredRackPiece(COMPUTER_PLAYER) : piece
+  ));
+  const skillMove = pickBestComputerMoveForRack(skillRack, { config, useSkill: true });
+  if (!skillMove) return regularMove;
+  if (!regularMove) return skillMove;
+  return compareComputerMoves(skillMove, regularMove, config) < 0 ? skillMove : regularMove;
 }
 
 function getPopupAnchorCell(piece, x, y) {
@@ -1038,24 +1201,32 @@ function clearComputerMoveTimer() {
 function scheduleComputerMove() {
   if (!state.gameActive || !state.vsComputer) return;
   if (state.computerMoveHandle) return;
+  const { intervalMs } = getComputerDifficultyConfig();
   state.computerMoveHandle = setInterval(() => {
     if (!state.gameActive || !state.vsComputer) return;
     runComputerTurn();
-  }, COMPUTER_MOVE_DELAY_MS);
+  }, intervalMs);
 }
 
 function runComputerTurn() {
   if (!state.gameActive || !state.vsComputer) return;
-  const move = pickBestComputerMove();
+  const move = getComputerMovePlan();
   if (!move) return;
 
-  const slotIndex = state.racks[COMPUTER_PLAYER].findIndex((piece) => piece?.id === move.piece.id);
+  if (move.useSkill) {
+    const activated = activateDesiredSkill(COMPUTER_PLAYER, { allowComputer: true });
+    if (!activated) return;
+  }
+
+  const slotIndex = move.slotIndex;
   if (slotIndex < 0) return;
   const originEl = state.slotEls[COMPUTER_PLAYER][slotIndex];
   if (!originEl) return;
+  const piece = state.racks[COMPUTER_PLAYER][slotIndex];
+  if (!piece || !canPlacePiece(piece, move.x, move.y)) return;
 
   placeDraggedPiece({
-    piece: move.piece,
+    piece,
     candidate: { x: move.x, y: move.y },
     source: { sourceType: 'rack', player: COMPUTER_PLAYER, slotIndex },
     originEl,
@@ -1189,10 +1360,23 @@ function endGame() {
 
 function toggleVsComputer() {
   state.vsComputer = !state.vsComputer;
+  closeDifficultyModal();
   renderModeUi();
   renderDesiredPiecePreviews();
   renderSkillButtons();
   renderRacks();
+}
+
+function openDifficultyModal() {
+  if (!state.vsComputer) return;
+  closeDesiredPieceModal();
+  closePiecePoolModal();
+  difficultyModalEl.classList.remove('hidden');
+  buildDifficultyList();
+}
+
+function closeDifficultyModal() {
+  difficultyModalEl.classList.add('hidden');
 }
 
 function centerCellsInEditor(cells) {
@@ -1240,6 +1424,7 @@ function updateDesiredPieceModal() {
 }
 
 function openDesiredPieceModal(player) {
+  closeDifficultyModal();
   closePiecePoolModal();
   state.pieceEditorDraft = {
     mode: 'desired',
@@ -1252,6 +1437,7 @@ function openDesiredPieceModal(player) {
 
 function openCustomPieceModal() {
   if (state.customShapes.length >= MAX_CUSTOM_PIECES) return;
+  closeDifficultyModal();
   closePiecePoolModal();
   state.pieceEditorDraft = {
     mode: 'custom',
@@ -1269,6 +1455,7 @@ function closeDesiredPieceModal({ reopenPiecePool = false } = {}) {
 }
 
 function openPiecePoolModal() {
+  closeDifficultyModal();
   closeDesiredPieceModal();
   piecePoolModalEl.classList.remove('hidden');
   renderPiecePoolList();
@@ -1351,16 +1538,14 @@ function removeCustomShape(shapeId) {
   renderPiecePoolList();
 }
 
-function activateDesiredSkill(player) {
-  if (!state.gameActive) return;
-  if (isComputerPlayer(player)) return;
-  if (Math.floor(state.scores[player]) < DESIRED_SKILL_COST) return;
-  if (Date.now() < state.skillCooldownEndsAt[player]) return;
+function activateDesiredSkill(player, { allowComputer = false } = {}) {
+  if (!canUseDesiredSkill(player, { allowComputer })) return false;
   state.scores[player] -= DESIRED_SKILL_COST;
   state.skillCooldownEndsAt[player] = Date.now() + DESIRED_SKILL_COOLDOWN_MS;
   state.racks[player][Math.floor(MAX_RACK / 2)] = makeDesiredRackPiece(player);
   updateScores();
   renderRacks();
+  return true;
 }
 
 function initDesiredPieces() {
@@ -1373,6 +1558,7 @@ function startGameFlow() {
   overlayEl.classList.add('hidden');
   closeDesiredPieceModal();
   closePiecePoolModal();
+  closeDifficultyModal();
   hidePauseOverlay();
   resetState();
   fillAllRacks();
@@ -1395,6 +1581,7 @@ function returnToPreparation() {
   endOverlayEl.classList.add('hidden');
   closeDesiredPieceModal();
   closePiecePoolModal();
+  closeDifficultyModal();
   resetState();
   renderBoard();
   renderRacks();
@@ -1410,6 +1597,7 @@ function init() {
   buildBoard();
   buildRacks();
   buildDesiredPieceGrid();
+  buildDifficultyList();
   initAllowedShapes();
   initDesiredPieces();
   resetState();
@@ -1428,6 +1616,7 @@ desiredPieceBtnEls.forEach((btn, player) => {
 });
 piecePoolBtn.addEventListener('click', openPiecePoolModal);
 vsComputerBtn.addEventListener('click', toggleVsComputer);
+computerDifficultyBtn.addEventListener('click', openDifficultyModal);
 customPieceBtn.addEventListener('click', openCustomPieceModal);
 skillBtnEls.forEach((btn, player) => {
   btn.addEventListener('click', () => activateDesiredSkill(player));
@@ -1438,10 +1627,14 @@ desiredPieceCancelBtn.addEventListener('click', () => closeDesiredPieceModal({
 }));
 desiredPieceSaveBtn.addEventListener('click', saveDesiredDraft);
 piecePoolCloseBtn.addEventListener('click', closePiecePoolModal);
+difficultyCloseBtn.addEventListener('click', closeDifficultyModal);
 desiredPieceModalEl.addEventListener('click', (event) => {
   if (event.target === desiredPieceModalEl) {
     closeDesiredPieceModal({ reopenPiecePool: Boolean(state.pieceEditorDraft?.returnToPiecePool) });
   }
+});
+difficultyModalEl.addEventListener('click', (event) => {
+  if (event.target === difficultyModalEl) closeDifficultyModal();
 });
 piecePoolModalEl.addEventListener('click', (event) => {
   if (event.target === piecePoolModalEl) closePiecePoolModal();
@@ -1460,6 +1653,8 @@ window.addEventListener('resize', () => {
 document.addEventListener('keydown', (event) => {
   if (event.key === 'Escape' && !desiredPieceModalEl.classList.contains('hidden')) {
     closeDesiredPieceModal({ reopenPiecePool: Boolean(state.pieceEditorDraft?.returnToPiecePool) });
+  } else if (event.key === 'Escape' && !difficultyModalEl.classList.contains('hidden')) {
+    closeDifficultyModal();
   } else if (event.key === 'Escape' && !piecePoolModalEl.classList.contains('hidden')) {
     closePiecePoolModal();
   }
