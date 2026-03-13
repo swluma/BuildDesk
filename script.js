@@ -62,6 +62,45 @@ const DESIRED_PREVIEW_COLORS = [
   'linear-gradient(180deg, #a2d6ff 0%, #478cff 100%)',
 ];
 
+const PLAYER_COLOR_THEMES = [
+  {
+    id: 'red',
+    label: 'Red',
+    previewColor: 'linear-gradient(180deg, #ff8a9a 0%, #e13b55 100%)',
+    desiredColor: 'linear-gradient(180deg, #ffb1bb 0%, #f04f68 100%)',
+  },
+  {
+    id: 'blue',
+    label: 'Blue',
+    previewColor: 'linear-gradient(180deg, #7fc4ff 0%, #2f74e8 100%)',
+    desiredColor: 'linear-gradient(180deg, #a2d6ff 0%, #478cff 100%)',
+  },
+  {
+    id: 'gold',
+    label: 'Gold',
+    previewColor: 'linear-gradient(180deg, #ffe48b 0%, #de9b23 100%)',
+    desiredColor: 'linear-gradient(180deg, #ffefb2 0%, #f1b545 100%)',
+  },
+  {
+    id: 'mint',
+    label: 'Mint',
+    previewColor: 'linear-gradient(180deg, #9ff8ce 0%, #24b276 100%)',
+    desiredColor: 'linear-gradient(180deg, #c6ffe2 0%, #49ca93 100%)',
+  },
+  {
+    id: 'violet',
+    label: 'Violet',
+    previewColor: 'linear-gradient(180deg, #c1a5ff 0%, #7548e3 100%)',
+    desiredColor: 'linear-gradient(180deg, #dbc8ff 0%, #9168f3 100%)',
+  },
+  {
+    id: 'coral',
+    label: 'Coral',
+    previewColor: 'linear-gradient(180deg, #ffb091 0%, #ea6133 100%)',
+    desiredColor: 'linear-gradient(180deg, #ffc8b2 0%, #ff7a4f 100%)',
+  },
+];
+
 const SHAPES = [
   { id: 'single', cells: [[0, 0]] },
   { id: 'dominoH', cells: [[0, 0], [1, 0]] },
@@ -117,6 +156,10 @@ const desiredPieceBtnEls = [
   document.getElementById('desired-piece-btn-0'),
   document.getElementById('desired-piece-btn-1'),
 ];
+const playerColorOptionEls = [
+  document.getElementById('player-color-options-0'),
+  document.getElementById('player-color-options-1'),
+];
 const prepPlayerLabelEls = [
   document.getElementById('prep-player-label-0'),
   document.getElementById('prep-player-label-1'),
@@ -160,6 +203,7 @@ const state = {
   nextCustomShapeNumber: 1,
   pieceEditorDraft: null,
   desiredGridCells: [],
+  playerColorThemeIndexes: [0, 1],
   gameActive: false,
   timeLeft: GAME_DURATION,
   timerHandle: null,
@@ -202,6 +246,11 @@ function getAllShapeDefs() {
   ];
 }
 
+function getPlayerColorTheme(player) {
+  const selectedIndex = state.playerColorThemeIndexes[player] ?? player;
+  return PLAYER_COLOR_THEMES[selectedIndex] || PLAYER_COLOR_THEMES[player] || PLAYER_COLOR_THEMES[0];
+}
+
 function editorCoordsToCells(cellKeys) {
   return Array.from(cellKeys, (key) => key.split(',').map(Number));
 }
@@ -223,7 +272,11 @@ function makePieceFromCells(cells, {
 }
 
 function getPlayerPreviewColor(player) {
-  return PLAYER_PREVIEW_COLORS[player] || randomItem(COLORS);
+  return getPlayerColorTheme(player).previewColor || PLAYER_PREVIEW_COLORS[player] || randomItem(COLORS);
+}
+
+function getPlayerDesiredColor(player) {
+  return getPlayerColorTheme(player).desiredColor || DESIRED_PREVIEW_COLORS[player] || getPlayerPreviewColor(player);
 }
 
 function makePiece(player = null) {
@@ -240,7 +293,7 @@ function makeDesiredPiece(player, cells = defaultDesiredCells()) {
   return makePieceFromCells(cells, {
     shapeId: `desired-${player}`,
     idPrefix: `D${player}`,
-    previewColor: DESIRED_PREVIEW_COLORS[player] || COLORS[player],
+    previewColor: getPlayerDesiredColor(player),
   });
 }
 
@@ -502,6 +555,35 @@ function renderDesiredPiecePreviews() {
   });
 }
 
+function buildPlayerColorOptions() {
+  playerColorOptionEls.forEach((containerEl, player) => {
+    if (!containerEl) return;
+    containerEl.innerHTML = '';
+    PLAYER_COLOR_THEMES.forEach((theme, index) => {
+      const optionEl = document.createElement('button');
+      optionEl.type = 'button';
+      optionEl.className = 'player-color-option';
+      optionEl.dataset.player = String(player);
+      optionEl.dataset.themeIndex = String(index);
+      optionEl.setAttribute('aria-label', `${getPlayerDisplayName(player)} color ${theme.label}`);
+      optionEl.setAttribute('title', theme.label);
+      optionEl.style.setProperty('--swatch', theme.previewColor);
+      containerEl.appendChild(optionEl);
+    });
+  });
+}
+
+function renderPlayerColorOptions() {
+  playerColorOptionEls.forEach((containerEl, player) => {
+    if (!containerEl) return;
+    Array.from(containerEl.children).forEach((optionEl, index) => {
+      const selected = index === state.playerColorThemeIndexes[player];
+      optionEl.classList.toggle('active', selected);
+      optionEl.setAttribute('aria-pressed', String(selected));
+    });
+  });
+}
+
 function renderPiecePoolButton() {
   piecePoolBtn.textContent = `Piece Types (${state.allowedShapeIds.size}/${getAllShapeDefs().length})`;
 }
@@ -520,6 +602,7 @@ function renderModeUi() {
   computerDifficultyBtn.textContent = `Difficulty: ${getComputerDifficultyLabel()}`;
   vsComputerBtn.textContent = `VS Computer: ${state.vsComputer ? 'On' : 'Off'}`;
   vsComputerBtn.classList.toggle('active', state.vsComputer);
+  renderPlayerColorOptions();
 }
 
 function renderPiecePoolList() {
@@ -1534,6 +1617,25 @@ function saveDesiredDraft() {
   closeDesiredPieceModal();
 }
 
+function setPlayerColorTheme(player, themeIndex) {
+  if (!Number.isInteger(themeIndex)) return;
+  if (!PLAYER_COLOR_THEMES[themeIndex]) return;
+  state.playerColorThemeIndexes[player] = themeIndex;
+  state.desiredPieces[player] = makeDesiredPiece(player, state.desiredPieces[player].cells);
+  state.racks[player] = state.racks[player].map((piece) => {
+    if (!piece) return piece;
+    if (piece.shapeId === `desired-${player}`) return makeDesiredRackPiece(player);
+    return {
+      ...piece,
+      previewColor: getPlayerPreviewColor(player),
+    };
+  });
+  renderModeUi();
+  renderDesiredPiecePreviews();
+  renderRacks();
+  renderBoard();
+}
+
 function replaceRemovedShapeInRacks(shapeId) {
   let changed = false;
   state.racks = state.racks.map((rack, player) => rack.map((piece) => {
@@ -1616,6 +1718,7 @@ function init() {
   buildBoard();
   buildRacks();
   buildDesiredPieceGrid();
+  buildPlayerColorOptions();
   buildDifficultyList();
   initAllowedShapes();
   initDesiredPieces();
@@ -1632,6 +1735,13 @@ function init() {
 
 desiredPieceBtnEls.forEach((btn, player) => {
   btn.addEventListener('click', () => openDesiredPieceModal(player));
+});
+playerColorOptionEls.forEach((containerEl, player) => {
+  containerEl?.addEventListener('click', (event) => {
+    const optionEl = event.target.closest('.player-color-option');
+    if (!optionEl) return;
+    setPlayerColorTheme(player, Number(optionEl.dataset.themeIndex));
+  });
 });
 piecePoolBtn.addEventListener('click', openPiecePoolModal);
 vsComputerBtn.addEventListener('click', toggleVsComputer);

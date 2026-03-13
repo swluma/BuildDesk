@@ -589,6 +589,44 @@ body {
   color: #dcebf4;
 }
 
+.prep-color-group {
+  display: grid;
+  gap: 6px;
+  width: 100%;
+}
+
+.prep-color-label {
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  color: #b7ccd9;
+}
+
+.player-color-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.player-color-option {
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  border: 2px solid rgba(255, 255, 255, 0.14);
+  background: var(--swatch, linear-gradient(180deg, #fff, #bbb));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.28),
+    0 6px 14px rgba(0, 0, 0, 0.2);
+}
+
+.player-color-option.active {
+  border-color: rgba(255, 255, 255, 0.92);
+  box-shadow:
+    0 0 0 2px rgba(141, 255, 117, 0.22),
+    inset 0 1px 0 rgba(255, 255, 255, 0.28),
+    0 6px 14px rgba(0, 0, 0, 0.24);
+}
+
 .desired-piece-preview,
 .desired-piece-live-preview {
   position: relative;
