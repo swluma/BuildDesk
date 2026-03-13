@@ -5,12 +5,16 @@ const SPECIAL_SPAWN_CHANCE = 0.05;
 const RESUME_COUNTDOWN = 3;
 const INVALID_FLASH_MS = 3000;
 const SUCCESS_FLASH_MS = 1000;
+const DESIRED_GRID_SIZE = 5;
+const DESIRED_MAX_BLOCKS = 5;
 const PLACED_NORMAL = 'normal';
 const PLACED_SPECIAL = 'special';
 
 const COLORS = [
   '#62d8ff', '#ff7da7', '#ffd36b', '#a78bff', '#6ff1b8', '#ff9f50', '#82f06d', '#4fd2ff', '#ff89f3'
 ];
+
+const DESIRED_PREVIEW_COLORS = ['#62d8ff', '#ff7da7'];
 
 const SHAPES = [
   { id: 'single', cells: [[0, 0]] },
@@ -38,7 +42,6 @@ const SHAPES = [
 const app = document.getElementById('app');
 const boardEl = document.getElementById('board');
 const boardShellEl = document.getElementById('board-shell');
-const ghostLayerEl = document.getElementById('ghost-layer');
 const scorePopupLayerEl = document.getElementById('score-popup-layer');
 const rackEls = [document.getElementById('rack-0'), document.getElementById('rack-1')];
 const scoreEls = [document.getElementById('score-0'), document.getElementById('score-1')];
@@ -57,6 +60,21 @@ const startBtn = document.getElementById('start-btn');
 const restartBtn = document.getElementById('restart-btn');
 const pieceSlotTemplate = document.getElementById('piece-slot-template');
 const specialSlotEl = document.getElementById('special-slot');
+const desiredPieceBtnEls = [
+  document.getElementById('desired-piece-btn-0'),
+  document.getElementById('desired-piece-btn-1'),
+];
+const desiredPiecePreviewEls = [
+  document.getElementById('desired-piece-preview-0'),
+  document.getElementById('desired-piece-preview-1'),
+];
+const desiredPieceModalEl = document.getElementById('desired-piece-modal');
+const desiredPieceGridEl = document.getElementById('desired-piece-grid');
+const desiredPieceLivePreviewEl = document.getElementById('desired-piece-live-preview');
+const desiredPieceCountEl = document.getElementById('desired-piece-count');
+const desiredPieceResetBtn = document.getElementById('desired-piece-reset');
+const desiredPieceCancelBtn = document.getElementById('desired-piece-cancel');
+const desiredPieceSaveBtn = document.getElementById('desired-piece-save');
 
 const state = {
   board: [],
@@ -66,6 +84,9 @@ const state = {
   boardCells: [],
   activeDrags: new Map(),
   specialPiece: null,
+  desiredPieces: [],
+  desiredDraft: null,
+  desiredGridCells: [],
   gameActive: false,
   timeLeft: GAME_DURATION,
   timerHandle: null,
@@ -93,18 +114,47 @@ function dimsForCells(cells) {
   return { width, height, cells: normalized };
 }
 
-function makePiece({ special = false } = {}) {
-  const shape = randomItem(SHAPES);
-  const dims = dimsForCells(cloneCells(shape.cells));
+function defaultDesiredCells() {
+  return [[0, 0]];
+}
+
+function editorCoordsToCells(cellKeys) {
+  return Array.from(cellKeys, (key) => key.split(',').map(Number));
+}
+
+function makePieceFromCells(cells, {
+  special = false,
+  shapeId = 'custom',
+  previewColor = null,
+  idPrefix = null,
+} = {}) {
+  const dims = dimsForCells(cloneCells(cells));
   return {
-    id: `${special ? 'S' : 'N'}-${Math.random().toString(36).slice(2, 10)}`,
-    shapeId: shape.id,
+    id: `${idPrefix || (special ? 'S' : 'N')}-${Math.random().toString(36).slice(2, 10)}`,
+    shapeId,
     cells: dims.cells,
     width: dims.width,
     height: dims.height,
-    previewColor: special ? '#ffb54a' : randomItem(COLORS),
+    previewColor: previewColor || (special ? '#ffb54a' : randomItem(COLORS)),
     special,
   };
+}
+
+function makePiece({ special = false } = {}) {
+  const shape = randomItem(SHAPES);
+  return makePieceFromCells(shape.cells, {
+    special,
+    shapeId: shape.id,
+    previewColor: special ? '#ffb54a' : randomItem(COLORS),
+  });
+}
+
+function makeDesiredPiece(player, cells = defaultDesiredCells()) {
+  return makePieceFromCells(cells, {
+    shapeId: `desired-${player}`,
+    idPrefix: `D${player}`,
+    previewColor: DESIRED_PREVIEW_COLORS[player] || COLORS[player],
+  });
 }
 
 function resetState() {
@@ -158,27 +208,49 @@ function buildRacks() {
   });
 }
 
+function buildDesiredPieceGrid() {
+  desiredPieceGridEl.innerHTML = '';
+  state.desiredGridCells = [];
+  for (let y = 0; y < DESIRED_GRID_SIZE; y += 1) {
+    for (let x = 0; x < DESIRED_GRID_SIZE; x += 1) {
+      const cell = document.createElement('button');
+      cell.type = 'button';
+      cell.className = 'desired-grid-cell';
+      cell.dataset.x = String(x);
+      cell.dataset.y = String(y);
+      cell.addEventListener('click', () => toggleDesiredDraftCell(x, y));
+      desiredPieceGridEl.appendChild(cell);
+      state.desiredGridCells.push(cell);
+    }
+  }
+}
+
 function fillAllRacks() {
   for (let player = 0; player < 2; player += 1) {
     state.racks[player] = Array.from({ length: MAX_RACK }, () => makePiece());
   }
 }
 
-function renderMiniPiece(targetEl, piece, slotSize, { specialPreview = false } = {}) {
+function getRenderSlotSize(targetEl, fallback = 72) {
+  return Math.max(24, Math.min(targetEl.clientWidth || fallback, targetEl.clientHeight || fallback));
+}
+
+function renderMiniPiece(targetEl, piece, slotSize, { specialPreview = false, forceEnabled = false } = {}) {
   targetEl.innerHTML = '';
   if (!piece) return;
 
-  const disabled = isPieceDisabled(piece);
+  const disabled = forceEnabled ? false : isPieceDisabled(piece);
+  const safeSlotSize = slotSize || getRenderSlotSize(targetEl);
 
   const pieceEl = document.createElement('div');
   pieceEl.className = 'mini-piece';
   pieceEl.dataset.pieceId = piece.id;
   pieceEl.classList.toggle('disabled', disabled);
 
-  const padding = slotSize * 0.08;
+  const padding = safeSlotSize * 0.08;
   const cellSize = Math.min(
-    (slotSize - padding * 2) / Math.max(piece.width, 1),
-    (slotSize - padding * 2) / Math.max(piece.height, 1)
+    (safeSlotSize - padding * 2) / Math.max(piece.width, 1),
+    (safeSlotSize - padding * 2) / Math.max(piece.height, 1)
   );
   const renderWidth = piece.width * cellSize;
   const renderHeight = piece.height * cellSize;
@@ -208,6 +280,12 @@ function renderMiniPiece(targetEl, piece, slotSize, { specialPreview = false } =
   });
 
   targetEl.appendChild(pieceEl);
+}
+
+function renderDesiredPiecePreviews() {
+  desiredPiecePreviewEls.forEach((previewEl, player) => {
+    renderMiniPiece(previewEl, state.desiredPieces[player], getRenderSlotSize(previewEl, 68), { forceEnabled: true });
+  });
 }
 
 function renderRacks() {
@@ -292,13 +370,12 @@ function refreshLayoutMetrics() {
   fitAppScale();
   const boardRect = boardEl.getBoundingClientRect();
   const shellRect = boardShellEl.getBoundingClientRect();
-  const cellSize = boardRect.width / BOARD_SIZE;
   state.boardMetrics = {
     left: boardRect.left,
     top: boardRect.top,
     width: boardRect.width,
     height: boardRect.height,
-    cellSize,
+    cellSize: boardRect.width / BOARD_SIZE,
     shellLeft: shellRect.left,
     shellTop: shellRect.top,
   };
@@ -340,13 +417,9 @@ function createDragElement(piece, cellSize) {
 
 function startDrag(event, piece, originEl, source) {
   if (state.activeDrags.has(event.pointerId)) return;
-  const boardMetrics = state.boardMetrics;
   const sourceRect = originEl.getBoundingClientRect();
-  const cellSize = boardMetrics.cellSize;
+  const cellSize = state.boardMetrics.cellSize;
   const dragEl = createDragElement(piece, cellSize);
-  const pointerOffsetX = event.clientX - sourceRect.left;
-  const pointerOffsetY = event.clientY - sourceRect.top;
-  const scale = cellSize / Math.max(1, Math.min(sourceRect.width / Math.max(piece.width, 1), sourceRect.height / Math.max(piece.height, 1)));
 
   originEl.classList.add('drag-origin');
 
@@ -357,8 +430,8 @@ function startDrag(event, piece, originEl, source) {
     source,
     dragEl,
     cellSize,
-    pointerOffsetX: Math.min(pointerOffsetX, piece.width * cellSize * 0.5),
-    pointerOffsetY: Math.min(pointerOffsetY, piece.height * cellSize * 0.5),
+    pointerOffsetX: Math.min(event.clientX - sourceRect.left, piece.width * cellSize * 0.5),
+    pointerOffsetY: Math.min(event.clientY - sourceRect.top, piece.height * cellSize * 0.5),
     candidate: null,
     valid: false,
   };
@@ -403,11 +476,11 @@ function updateDrag(event, drag) {
   drag.dragEl.style.left = `${left}px`;
   drag.dragEl.style.top = `${top}px`;
 
-  const candidateX = Math.round((left - state.boardMetrics.left) / drag.cellSize);
-  const candidateY = Math.round((top - state.boardMetrics.top) / drag.cellSize);
-  const candidate = { x: candidateX, y: candidateY };
-  drag.candidate = candidate;
-  drag.valid = canPlacePiece(drag.piece, candidateX, candidateY);
+  drag.candidate = {
+    x: Math.round((left - state.boardMetrics.left) / drag.cellSize),
+    y: Math.round((top - state.boardMetrics.top) / drag.cellSize),
+  };
+  drag.valid = canPlacePiece(drag.piece, drag.candidate.x, drag.candidate.y);
   drag.dragEl.classList.toggle('valid', drag.valid);
   drag.dragEl.classList.toggle('invalid', !drag.valid);
   markGhost(drag);
@@ -463,6 +536,15 @@ function canPlacePiece(piece, x, y) {
     const py = y + dy;
     return px >= 0 && px < BOARD_SIZE && py >= 0 && py < BOARD_SIZE && !state.board[py][px];
   });
+}
+
+function anyPlacementForPiece(piece) {
+  for (let y = 0; y < BOARD_SIZE; y += 1) {
+    for (let x = 0; x < BOARD_SIZE; x += 1) {
+      if (canPlacePiece(piece, x, y)) return true;
+    }
+  }
+  return false;
 }
 
 function isPieceDisabled(piece) {
@@ -553,18 +635,16 @@ function showScorePopup({ lineCount, points, specialDoubled }, anchorCell) {
   }
 
   const cellSize = state.boardMetrics.cellSize;
-  const maxX = state.boardMetrics.width - 20;
-  const maxY = state.boardMetrics.height - 20;
-  const left = Math.min(maxX, Math.max(20, (anchorCell.x + 0.5) * cellSize));
-  const top = Math.min(maxY, Math.max(24, (anchorCell.y + 0.2) * cellSize));
+  const left = Math.min(state.boardMetrics.width - 20, Math.max(20, (anchorCell.x + 0.5) * cellSize));
+  const top = Math.min(state.boardMetrics.height - 20, Math.max(24, (anchorCell.y + 0.2) * cellSize));
 
   popupEl.style.left = `${left}px`;
   popupEl.style.top = `${top}px`;
-
   scorePopupLayerEl.appendChild(popupEl);
+
   state.scorePopupHandle = setTimeout(() => {
     popupEl.remove();
-    if (state.scorePopupHandle) state.scorePopupHandle = null;
+    state.scorePopupHandle = null;
   }, 3000);
 }
 
@@ -601,21 +681,23 @@ function animateAndClear(rows, cols) {
 }
 
 function maybeSpawnSpecial() {
-  if (state.specialPiece) return;
-  if (Math.random() < SPECIAL_SPAWN_CHANCE) {
-    state.specialPiece = makePiece({ special: true });
-    renderSpecialSlot();
-  }
+  if (state.specialPiece || Math.random() >= SPECIAL_SPAWN_CHANCE) return;
+  state.specialPiece = makePiece({ special: true });
+  renderSpecialSlot();
 }
 
 function refillSource(source) {
   if (source.sourceType === 'rack') {
     state.racks[source.player][source.slotIndex] = makePiece();
     renderRacks();
-  } else if (source.sourceType === 'special') {
-    state.specialPiece = null;
-    renderSpecialSlot();
+    return;
   }
+  state.specialPiece = null;
+  renderSpecialSlot();
+}
+
+function estimateNearestPlayer(y) {
+  return y < BOARD_SIZE / 2 ? 0 : 1;
 }
 
 function placeDraggedPiece(drag) {
@@ -641,19 +723,6 @@ function placeDraggedPiece(drag) {
   setTimeout(() => checkForStuckAfterMove(drag.source.sourceType === 'rack' ? drag.source.player : estimateNearestPlayer(y)), 240);
 }
 
-function estimateNearestPlayer(y) {
-  return y < BOARD_SIZE / 2 ? 0 : 1;
-}
-
-function anyPlacementForPiece(piece) {
-  for (let y = 0; y < BOARD_SIZE; y += 1) {
-    for (let x = 0; x < BOARD_SIZE; x += 1) {
-      if (canPlacePiece(piece, x, y)) return true;
-    }
-  }
-  return false;
-}
-
 function checkForStuckAfterMove(triggerPlayer) {
   if (!state.gameActive) return;
   const allRegularPieces = [...state.racks[0], ...state.racks[1]].filter(Boolean);
@@ -671,12 +740,20 @@ function hidePauseOverlay() {
   pauseOverlayEl.classList.add('hidden');
 }
 
+function clearBoardAndRefreshPieces() {
+  state.board = Array.from({ length: BOARD_SIZE }, () => Array.from({ length: BOARD_SIZE }, () => null));
+  fillAllRacks();
+  state.specialPiece = null;
+  renderBoard();
+  renderRacks();
+  renderSpecialSlot();
+}
+
 function handleStuck(triggerPlayer) {
   state.gameActive = false;
   state.scores[triggerPlayer] = Math.floor(state.scores[triggerPlayer] / 2);
   updateScores();
   showPauseOverlay(`Player ${triggerPlayer + 1} caused a jam. Score halved!`);
-
   clearBoardAndRefreshPieces();
 
   let remaining = RESUME_COUNTDOWN;
@@ -692,15 +769,6 @@ function handleStuck(triggerPlayer) {
     hidePauseOverlay();
     state.gameActive = true;
   }, 1000);
-}
-
-function clearBoardAndRefreshPieces() {
-  state.board = Array.from({ length: BOARD_SIZE }, () => Array.from({ length: BOARD_SIZE }, () => null));
-  fillAllRacks();
-  state.specialPiece = null;
-  renderBoard();
-  renderRacks();
-  renderSpecialSlot();
 }
 
 function startVisibleCountdown(title, from, onDone) {
@@ -729,9 +797,7 @@ function startTimerLoop() {
     if (!state.gameActive) return;
     state.timeLeft -= 1;
     updateTimer();
-    if (state.timeLeft <= 0) {
-      endGame();
-    }
+    if (state.timeLeft <= 0) endGame();
   }, 1000);
 }
 
@@ -751,15 +817,84 @@ function endGame() {
   endOverlayEl.classList.remove('hidden');
 }
 
+function centerCellsInEditor(cells) {
+  const dims = dimsForCells(cells);
+  const offsetX = Math.floor((DESIRED_GRID_SIZE - dims.width) / 2);
+  const offsetY = Math.floor((DESIRED_GRID_SIZE - dims.height) / 2);
+  return dims.cells.map(([x, y]) => `${x + offsetX},${y + offsetY}`);
+}
+
+function updateDesiredPieceModal() {
+  const draftKeys = state.desiredDraft?.cellKeys || new Set(centerCellsInEditor(defaultDesiredCells()));
+  state.desiredGridCells.forEach((cellEl) => {
+    const key = `${cellEl.dataset.x},${cellEl.dataset.y}`;
+    cellEl.classList.toggle('active', draftKeys.has(key));
+  });
+
+  const cells = editorCoordsToCells(draftKeys);
+  const previewPiece = cells.length > 0 ? makeDesiredPiece(state.desiredDraft.player, cells) : null;
+  renderMiniPiece(desiredPieceLivePreviewEl, previewPiece, getRenderSlotSize(desiredPieceLivePreviewEl, 88), { forceEnabled: true });
+  desiredPieceCountEl.textContent = `${cells.length} / ${DESIRED_MAX_BLOCKS} blocks`;
+  desiredPieceCountEl.classList.toggle('maxed', cells.length >= DESIRED_MAX_BLOCKS);
+  desiredPieceSaveBtn.disabled = cells.length === 0;
+}
+
+function openDesiredPieceModal(player) {
+  state.desiredDraft = {
+    player,
+    cellKeys: new Set(centerCellsInEditor(state.desiredPieces[player].cells)),
+  };
+  desiredPieceModalEl.classList.remove('hidden');
+  updateDesiredPieceModal();
+}
+
+function closeDesiredPieceModal() {
+  desiredPieceModalEl.classList.add('hidden');
+  state.desiredDraft = null;
+}
+
+function toggleDesiredDraftCell(x, y) {
+  if (!state.desiredDraft) return;
+  const key = `${x},${y}`;
+  if (state.desiredDraft.cellKeys.has(key)) {
+    state.desiredDraft.cellKeys.delete(key);
+  } else if (state.desiredDraft.cellKeys.size < DESIRED_MAX_BLOCKS) {
+    state.desiredDraft.cellKeys.add(key);
+  }
+  updateDesiredPieceModal();
+}
+
+function resetDesiredDraft() {
+  if (!state.desiredDraft) return;
+  state.desiredDraft.cellKeys = new Set(centerCellsInEditor(defaultDesiredCells()));
+  updateDesiredPieceModal();
+}
+
+function saveDesiredDraft() {
+  if (!state.desiredDraft) return;
+  const cells = editorCoordsToCells(state.desiredDraft.cellKeys);
+  if (cells.length === 0) return;
+  state.desiredPieces[state.desiredDraft.player] = makeDesiredPiece(state.desiredDraft.player, cells);
+  renderDesiredPiecePreviews();
+  closeDesiredPieceModal();
+}
+
+function initDesiredPieces() {
+  state.desiredPieces = [makeDesiredPiece(0), makeDesiredPiece(1)];
+  renderDesiredPiecePreviews();
+}
+
 function startGameFlow() {
   endOverlayEl.classList.add('hidden');
   overlayEl.classList.add('hidden');
+  closeDesiredPieceModal();
   hidePauseOverlay();
   resetState();
   fillAllRacks();
+  renderBoard();
   renderRacks();
   renderSpecialSlot();
-  renderBoard();
+  renderDesiredPiecePreviews();
   refreshLayoutMetrics();
   startVisibleCountdown('START', 3, () => {
     state.gameActive = true;
@@ -770,6 +905,8 @@ function startGameFlow() {
 function init() {
   buildBoard();
   buildRacks();
+  buildDesiredPieceGrid();
+  initDesiredPieces();
   resetState();
   renderBoard();
   renderRacks();
@@ -777,12 +914,29 @@ function init() {
   refreshLayoutMetrics();
 }
 
+desiredPieceBtnEls.forEach((btn, player) => {
+  btn.addEventListener('click', () => openDesiredPieceModal(player));
+});
+desiredPieceResetBtn.addEventListener('click', resetDesiredDraft);
+desiredPieceCancelBtn.addEventListener('click', closeDesiredPieceModal);
+desiredPieceSaveBtn.addEventListener('click', saveDesiredDraft);
+desiredPieceModalEl.addEventListener('click', (event) => {
+  if (event.target === desiredPieceModalEl) closeDesiredPieceModal();
+});
 startBtn.addEventListener('click', startGameFlow);
 restartBtn.addEventListener('click', startGameFlow);
 window.addEventListener('resize', () => {
   refreshLayoutMetrics();
   renderRacks();
   renderSpecialSlot();
+  renderDesiredPiecePreviews();
+  if (state.desiredDraft) updateDesiredPieceModal();
+});
+
+document.addEventListener('keydown', (event) => {
+  if (event.key === 'Escape' && !desiredPieceModalEl.classList.contains('hidden')) {
+    closeDesiredPieceModal();
+  }
 });
 
 document.addEventListener('touchmove', (event) => {

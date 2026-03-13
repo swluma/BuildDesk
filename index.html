@@ -1,8 +1,11 @@
 <!DOCTYPE html>
-<html lang="ja">
+<html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover"
+  />
   <title>Block Blast Duel</title>
   <link rel="stylesheet" href="style.css" />
 </head>
@@ -34,7 +37,7 @@
       <aside class="special-area">
         <div class="special-title">SPECIAL</div>
         <div id="special-slot" class="special-slot empty">
-          <div class="special-hint">LINE CLEARで出現</div>
+          <div class="special-hint">Appears after a line clear</div>
         </div>
       </aside>
     </main>
@@ -51,9 +54,69 @@
   <div id="overlay" class="overlay show">
     <div class="overlay-card intro-card">
       <h1>BLOCK BLAST DUEL</h1>
-      <p>上下のプレイヤーが同じ盤を奪い合うスピード対戦。</p>
-      <p>ピースを長押しして盤へスライド、離して配置。</p>
-      <button id="start-btn" class="primary-btn">ゲーム開始</button>
+      <p>Two players race on the same board.</p>
+      <p>Long-press a piece, slide it to the board, then release to place it.</p>
+      <div class="prep-config" aria-label="desired piece setup">
+        <div class="prep-player-card">
+          <div class="prep-player-meta">
+            <div class="prep-player-label">PLAYER 1</div>
+            <button
+              id="desired-piece-btn-0"
+              class="secondary-btn desired-piece-btn"
+              type="button"
+              data-player="0"
+            >Desired Piece</button>
+          </div>
+          <div
+            id="desired-piece-preview-0"
+            class="desired-piece-preview"
+            aria-label="player 1 desired piece"
+          ></div>
+        </div>
+        <div class="prep-player-card">
+          <div class="prep-player-meta">
+            <div class="prep-player-label">PLAYER 2</div>
+            <button
+              id="desired-piece-btn-1"
+              class="secondary-btn desired-piece-btn"
+              type="button"
+              data-player="1"
+            >Desired Piece</button>
+          </div>
+          <div
+            id="desired-piece-preview-1"
+            class="desired-piece-preview"
+            aria-label="player 2 desired piece"
+          ></div>
+        </div>
+      </div>
+      <button id="start-btn" class="primary-btn">Start Game</button>
+    </div>
+  </div>
+
+  <div
+    id="desired-piece-modal"
+    class="overlay hidden desired-piece-modal"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="desired-piece-modal-title"
+  >
+    <div class="overlay-card desired-piece-card">
+      <h2 id="desired-piece-modal-title">DESIRED PIECE</h2>
+      <p class="desired-piece-copy">Draw up to 5 blocks in the 5 x 5 field.</p>
+      <div class="desired-piece-editor">
+        <div id="desired-piece-grid" class="desired-piece-grid" aria-label="desired piece grid"></div>
+        <div class="desired-piece-sidebar">
+          <div class="desired-piece-sidebar-label">PREVIEW</div>
+          <div id="desired-piece-live-preview" class="desired-piece-live-preview"></div>
+          <div id="desired-piece-count" class="desired-piece-count">1 / 5 blocks</div>
+          <button id="desired-piece-reset" class="secondary-btn" type="button">Reset</button>
+        </div>
+      </div>
+      <div class="desired-piece-actions">
+        <button id="desired-piece-cancel" class="secondary-btn" type="button">Cancel</button>
+        <button id="desired-piece-save" class="primary-btn" type="button">Save</button>
+      </div>
     </div>
   </div>
 
@@ -76,7 +139,7 @@
     <div class="overlay-card end-card">
       <h2 id="end-title">GAME OVER</h2>
       <div id="end-summary" class="end-summary"></div>
-      <button id="restart-btn" class="primary-btn">もう一度</button>
+      <button id="restart-btn" class="primary-btn">Play Again</button>
     </div>
   </div>
 
