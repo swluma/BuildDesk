@@ -514,6 +514,8 @@ function renderMiniPiece(targetEl, piece, slotSize, { forceEnabled = false } = {
 
   const disabled = forceEnabled ? false : isPieceDisabled(piece);
   const safeSlotSize = slotSize || getRenderSlotSize(targetEl);
+  const targetWidth = targetEl.clientWidth || safeSlotSize;
+  const targetHeight = targetEl.clientHeight || safeSlotSize;
 
   const pieceEl = document.createElement('div');
   pieceEl.className = 'mini-piece';
@@ -530,8 +532,8 @@ function renderMiniPiece(targetEl, piece, slotSize, { forceEnabled = false } = {
 
   pieceEl.style.width = `${renderWidth}px`;
   pieceEl.style.height = `${renderHeight}px`;
-  pieceEl.style.left = `${(targetEl.clientWidth - renderWidth) / 2}px`;
-  pieceEl.style.top = `${(targetEl.clientHeight - renderHeight) / 2}px`;
+  pieceEl.style.left = `${(targetWidth - renderWidth) / 2}px`;
+  pieceEl.style.top = `${(targetHeight - renderHeight) / 2}px`;
 
   piece.cells.forEach(([x, y]) => {
     const cell = document.createElement('div');
