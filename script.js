@@ -1287,9 +1287,9 @@ function clearBoardAndRefreshPieces() {
 function handleStuck(triggerPlayer) {
   state.gameActive = false;
   clearComputerMoveTimer();
-  state.scores[triggerPlayer] = Math.floor(state.scores[triggerPlayer] / 2);
+  state.scores[triggerPlayer] = Math.floor(state.scores[triggerPlayer] * 0.75);
   updateScores();
-  showPauseOverlay(`${getPlayerDisplayName(triggerPlayer)} caused a jam. Score halved!`);
+  showPauseOverlay(`${getPlayerDisplayName(triggerPlayer)} caused a jam. Score reduced by 25%!`);
   clearBoardAndRefreshPieces();
 
   let remaining = RESUME_COUNTDOWN;
