@@ -661,6 +661,7 @@ body {
 }
 
 .piece-pool-item {
+  position: relative;
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   gap: 4px;
@@ -678,6 +679,7 @@ body {
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.05),
     0 8px 16px rgba(0, 0, 0, 0.16);
+  cursor: pointer;
 }
 
 .piece-pool-item.disabled {
@@ -702,9 +704,17 @@ body {
 
 .piece-pool-item-meta {
   display: grid;
-  gap: 0;
+  gap: 3px;
   min-width: 0;
   width: 100%;
+}
+
+.piece-pool-item-name {
+  font-size: 0.68rem;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  color: #f3f8fb;
+  line-height: 1.15;
 }
 
 .piece-pool-item-state {
@@ -718,8 +728,38 @@ body {
   color: #b8c0c7;
 }
 
+.piece-pool-item-delete {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 20px;
+  height: 20px;
+  border: none;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  background: linear-gradient(180deg, #ff5d72, #c62439);
+  color: #fff;
+  font-size: 0.95rem;
+  font-weight: 900;
+  line-height: 1;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.28);
+  cursor: pointer;
+}
+
 .piece-pool-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
   margin-top: 14px;
+}
+
+.piece-pool-actions .primary-btn,
+.piece-pool-actions .secondary-btn,
+.desired-piece-actions .primary-btn,
+.desired-piece-actions .secondary-btn {
+  margin-top: 0;
 }
 
 .desired-piece-editor {
@@ -990,6 +1030,12 @@ body {
   }
 
   .desired-piece-actions {
+    grid-template-columns: 1fr;
+    gap: 8px;
+    margin-top: 12px;
+  }
+
+  .piece-pool-actions {
     grid-template-columns: 1fr;
     gap: 8px;
     margin-top: 12px;

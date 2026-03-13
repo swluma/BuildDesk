@@ -10,6 +10,7 @@ const DESIRED_GRID_SIZE = 5;
 const DESIRED_MAX_BLOCKS = 5;
 const DESIRED_SKILL_COST = 15;
 const DESIRED_SKILL_COOLDOWN_MS = 15000;
+const MAX_CUSTOM_PIECES = 10;
 
 const COLORS = [
   '#62d8ff', '#ff7da7', '#ffd36b', '#a78bff', '#6ff1b8', '#ff9f50', '#82f06d', '#4fd2ff', '#ff89f3'
@@ -72,6 +73,8 @@ const desiredPiecePreviewEls = [
   document.getElementById('desired-piece-preview-1'),
 ];
 const desiredPieceModalEl = document.getElementById('desired-piece-modal');
+const desiredPieceModalTitleEl = document.getElementById('desired-piece-modal-title');
+const desiredPieceModalCopyEl = document.getElementById('desired-piece-modal-copy');
 const desiredPieceGridEl = document.getElementById('desired-piece-grid');
 const desiredPieceLivePreviewEl = document.getElementById('desired-piece-live-preview');
 const desiredPieceCountEl = document.getElementById('desired-piece-count');
@@ -82,6 +85,7 @@ const piecePoolBtn = document.getElementById('piece-pool-btn');
 const piecePoolModalEl = document.getElementById('piece-pool-modal');
 const piecePoolSummaryEl = document.getElementById('piece-pool-summary');
 const piecePoolListEl = document.getElementById('piece-pool-list');
+const customPieceBtn = document.getElementById('custom-piece-btn');
 const piecePoolCloseBtn = document.getElementById('piece-pool-close');
 
 const state = {
@@ -93,11 +97,12 @@ const state = {
   activeDrags: new Map(),
   specialTiles: new Set(),
   desiredPieces: [],
+  customShapes: [],
   allowedShapeIds: new Set(),
   skillCooldownEndsAt: [0, 0],
-  desiredDraft: null,
+  nextCustomShapeNumber: 1,
+  pieceEditorDraft: null,
   desiredGridCells: [],
-  piecePoolCards: [],
   gameActive: false,
   timeLeft: GAME_DURATION,
   timerHandle: null,
@@ -130,6 +135,13 @@ function defaultDesiredCells() {
   return [[0, 0]];
 }
 
+function getAllShapeDefs() {
+  return [
+    ...SHAPES,
+    ...state.customShapes.map((shape) => ({ ...shape, custom: true })),
+  ];
+}
+
 function editorCoordsToCells(cellKeys) {
   return Array.from(cellKeys, (key) => key.split(',').map(Number));
 }
@@ -151,8 +163,9 @@ function makePieceFromCells(cells, {
 }
 
 function makePiece() {
-  const availableShapes = SHAPES.filter((shape) => state.allowedShapeIds.has(shape.id));
-  const shape = randomItem(availableShapes.length > 0 ? availableShapes : SHAPES);
+  const allShapes = getAllShapeDefs();
+  const availableShapes = allShapes.filter((shape) => state.allowedShapeIds.has(shape.id));
+  const shape = randomItem(availableShapes.length > 0 ? availableShapes : allShapes);
   return makePieceFromCells(shape.cells, {
     shapeId: shape.id,
     previewColor: randomItem(COLORS),
@@ -195,7 +208,7 @@ function resetState() {
 }
 
 function initAllowedShapes() {
-  state.allowedShapeIds = new Set(SHAPES.map((shape) => shape.id));
+  state.allowedShapeIds = new Set(getAllShapeDefs().map((shape) => shape.id));
 }
 
 function buildBoard() {
@@ -248,13 +261,20 @@ function buildDesiredPieceGrid() {
 
 function buildPiecePoolList() {
   piecePoolListEl.innerHTML = '';
-  state.piecePoolCards = SHAPES.map((shape, index) => {
-    const cardEl = document.createElement('button');
-    cardEl.type = 'button';
+  getAllShapeDefs().forEach((shape, index) => {
+    const cardEl = document.createElement('div');
     cardEl.className = 'piece-pool-item';
     cardEl.dataset.shapeId = shape.id;
+    cardEl.tabIndex = 0;
+    cardEl.setAttribute('role', 'button');
     cardEl.setAttribute('aria-pressed', 'true');
     cardEl.addEventListener('click', () => toggleAllowedShape(shape.id));
+    cardEl.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault();
+        toggleAllowedShape(shape.id);
+      }
+    });
 
     const previewEl = document.createElement('div');
     previewEl.className = 'piece-pool-item-preview';
@@ -262,11 +282,27 @@ function buildPiecePoolList() {
     const metaEl = document.createElement('div');
     metaEl.className = 'piece-pool-item-meta';
 
+    const nameEl = document.createElement('div');
+    nameEl.className = 'piece-pool-item-name';
+    nameEl.textContent = shape.custom ? shape.label : 'Common Piece';
+
     const stateEl = document.createElement('div');
     stateEl.className = 'piece-pool-item-state';
 
-    metaEl.appendChild(stateEl);
+    metaEl.append(nameEl, stateEl);
     cardEl.append(previewEl, metaEl);
+    if (shape.custom) {
+      const deleteBtn = document.createElement('button');
+      deleteBtn.type = 'button';
+      deleteBtn.className = 'piece-pool-item-delete';
+      deleteBtn.setAttribute('aria-label', `Delete ${shape.label}`);
+      deleteBtn.textContent = '×';
+      deleteBtn.addEventListener('click', (event) => {
+        event.stopPropagation();
+        removeCustomShape(shape.id);
+      });
+      cardEl.appendChild(deleteBtn);
+    }
     piecePoolListEl.appendChild(cardEl);
 
     const previewPiece = makePieceFromCells(shape.cells, {
@@ -274,8 +310,11 @@ function buildPiecePoolList() {
       idPrefix: `P${index}`,
       previewColor: COLORS[index % COLORS.length],
     });
-
-    return { shapeId: shape.id, cardEl, previewEl, stateEl, previewPiece };
+    const enabled = state.allowedShapeIds.has(shape.id);
+    cardEl.classList.toggle('disabled', !enabled);
+    cardEl.setAttribute('aria-pressed', String(enabled));
+    stateEl.textContent = enabled ? 'Enabled' : 'Disabled';
+    renderMiniPiece(previewEl, previewPiece, getRenderSlotSize(previewEl, 68), { forceEnabled: enabled });
   });
 }
 
@@ -341,19 +380,16 @@ function renderDesiredPiecePreviews() {
 }
 
 function renderPiecePoolButton() {
-  piecePoolBtn.textContent = `Piece Types (${state.allowedShapeIds.size}/${SHAPES.length})`;
+  piecePoolBtn.textContent = `Piece Types (${state.allowedShapeIds.size}/${getAllShapeDefs().length})`;
 }
 
 function renderPiecePoolList() {
+  buildPiecePoolList();
+  const totalCount = getAllShapeDefs().length;
   const enabledCount = state.allowedShapeIds.size;
-  piecePoolSummaryEl.textContent = `${enabledCount} of ${SHAPES.length} enabled`;
-  state.piecePoolCards.forEach(({ shapeId, cardEl, previewEl, stateEl, previewPiece }) => {
-    const enabled = state.allowedShapeIds.has(shapeId);
-    cardEl.classList.toggle('disabled', !enabled);
-    cardEl.setAttribute('aria-pressed', String(enabled));
-    stateEl.textContent = enabled ? 'Enabled' : 'Disabled';
-    renderMiniPiece(previewEl, previewPiece, getRenderSlotSize(previewEl, 68), { forceEnabled: enabled });
-  });
+  piecePoolSummaryEl.textContent = `${enabledCount} of ${totalCount} enabled`;
+  customPieceBtn.textContent = `Add Custom Piece (${state.customShapes.length}/${MAX_CUSTOM_PIECES})`;
+  customPieceBtn.disabled = state.customShapes.length >= MAX_CUSTOM_PIECES;
   renderPiecePoolButton();
 }
 
@@ -938,15 +974,37 @@ function centerCellsInEditor(cells) {
   return dims.cells.map(([x, y]) => `${x + offsetX},${y + offsetY}`);
 }
 
+function getPieceEditorConfig() {
+  if (state.pieceEditorDraft?.mode === 'custom') {
+    return {
+      title: 'CUSTOM PIECE',
+      copy: 'Draw up to 5 blocks in the 5 x 5 field to add a custom piece.',
+      previewFactory: (cells) => makePieceFromCells(cells, {
+        shapeId: 'custom-preview',
+        idPrefix: 'C',
+        previewColor: COLORS[state.customShapes.length % COLORS.length],
+      }),
+    };
+  }
+  return {
+    title: 'DESIRED PIECE',
+    copy: 'Draw up to 5 blocks in the 5 x 5 field.',
+    previewFactory: (cells) => makeDesiredPiece(state.pieceEditorDraft.player, cells),
+  };
+}
+
 function updateDesiredPieceModal() {
-  const draftKeys = state.desiredDraft?.cellKeys || new Set(centerCellsInEditor(defaultDesiredCells()));
+  const draftKeys = state.pieceEditorDraft?.cellKeys || new Set(centerCellsInEditor(defaultDesiredCells()));
+  const config = getPieceEditorConfig();
+  desiredPieceModalTitleEl.textContent = config.title;
+  desiredPieceModalCopyEl.textContent = config.copy;
   state.desiredGridCells.forEach((cellEl) => {
     const key = `${cellEl.dataset.x},${cellEl.dataset.y}`;
     cellEl.classList.toggle('active', draftKeys.has(key));
   });
 
   const cells = editorCoordsToCells(draftKeys);
-  const previewPiece = cells.length > 0 ? makeDesiredPiece(state.desiredDraft.player, cells) : null;
+  const previewPiece = cells.length > 0 ? config.previewFactory(cells) : null;
   renderMiniPiece(desiredPieceLivePreviewEl, previewPiece, getRenderSlotSize(desiredPieceLivePreviewEl, 88), { forceEnabled: true });
   desiredPieceCountEl.textContent = `${cells.length} / ${DESIRED_MAX_BLOCKS} blocks`;
   desiredPieceCountEl.classList.toggle('maxed', cells.length >= DESIRED_MAX_BLOCKS);
@@ -955,7 +1013,8 @@ function updateDesiredPieceModal() {
 
 function openDesiredPieceModal(player) {
   closePiecePoolModal();
-  state.desiredDraft = {
+  state.pieceEditorDraft = {
+    mode: 'desired',
     player,
     cellKeys: new Set(centerCellsInEditor(state.desiredPieces[player].cells)),
   };
@@ -963,9 +1022,22 @@ function openDesiredPieceModal(player) {
   updateDesiredPieceModal();
 }
 
-function closeDesiredPieceModal() {
+function openCustomPieceModal() {
+  if (state.customShapes.length >= MAX_CUSTOM_PIECES) return;
+  closePiecePoolModal();
+  state.pieceEditorDraft = {
+    mode: 'custom',
+    returnToPiecePool: true,
+    cellKeys: new Set(centerCellsInEditor(defaultDesiredCells())),
+  };
+  desiredPieceModalEl.classList.remove('hidden');
+  updateDesiredPieceModal();
+}
+
+function closeDesiredPieceModal({ reopenPiecePool = false } = {}) {
   desiredPieceModalEl.classList.add('hidden');
-  state.desiredDraft = null;
+  state.pieceEditorDraft = null;
+  if (reopenPiecePool) openPiecePoolModal();
 }
 
 function openPiecePoolModal() {
@@ -989,29 +1061,66 @@ function toggleAllowedShape(shapeId) {
 }
 
 function toggleDesiredDraftCell(x, y) {
-  if (!state.desiredDraft) return;
+  if (!state.pieceEditorDraft) return;
   const key = `${x},${y}`;
-  if (state.desiredDraft.cellKeys.has(key)) {
-    state.desiredDraft.cellKeys.delete(key);
-  } else if (state.desiredDraft.cellKeys.size < DESIRED_MAX_BLOCKS) {
-    state.desiredDraft.cellKeys.add(key);
+  if (state.pieceEditorDraft.cellKeys.has(key)) {
+    state.pieceEditorDraft.cellKeys.delete(key);
+  } else if (state.pieceEditorDraft.cellKeys.size < DESIRED_MAX_BLOCKS) {
+    state.pieceEditorDraft.cellKeys.add(key);
   }
   updateDesiredPieceModal();
 }
 
 function resetDesiredDraft() {
-  if (!state.desiredDraft) return;
-  state.desiredDraft.cellKeys = new Set(centerCellsInEditor(defaultDesiredCells()));
+  if (!state.pieceEditorDraft) return;
+  state.pieceEditorDraft.cellKeys = new Set(centerCellsInEditor(defaultDesiredCells()));
   updateDesiredPieceModal();
 }
 
 function saveDesiredDraft() {
-  if (!state.desiredDraft) return;
-  const cells = editorCoordsToCells(state.desiredDraft.cellKeys);
+  if (!state.pieceEditorDraft) return;
+  const cells = editorCoordsToCells(state.pieceEditorDraft.cellKeys);
   if (cells.length === 0) return;
-  state.desiredPieces[state.desiredDraft.player] = makeDesiredPiece(state.desiredDraft.player, cells);
+  if (state.pieceEditorDraft.mode === 'custom') {
+    const shapeNumber = state.nextCustomShapeNumber;
+    const shapeId = `custom-${shapeNumber}`;
+    state.nextCustomShapeNumber += 1;
+    state.customShapes.push({
+      id: shapeId,
+      label: `Custom Piece ${shapeNumber}`,
+      cells: dimsForCells(cells).cells,
+    });
+    state.allowedShapeIds.add(shapeId);
+    renderPiecePoolList();
+    closeDesiredPieceModal({ reopenPiecePool: true });
+    return;
+  }
+  state.desiredPieces[state.pieceEditorDraft.player] = makeDesiredPiece(state.pieceEditorDraft.player, cells);
   renderDesiredPiecePreviews();
   closeDesiredPieceModal();
+}
+
+function replaceRemovedShapeInRacks(shapeId) {
+  let changed = false;
+  state.racks = state.racks.map((rack) => rack.map((piece) => {
+    if (piece?.shapeId !== shapeId) return piece;
+    changed = true;
+    return makePiece();
+  }));
+  if (changed) renderRacks();
+}
+
+function removeCustomShape(shapeId) {
+  const nextCustomShapes = state.customShapes.filter((shape) => shape.id !== shapeId);
+  if (nextCustomShapes.length === state.customShapes.length) return;
+  state.customShapes = nextCustomShapes;
+  state.allowedShapeIds.delete(shapeId);
+  if (state.allowedShapeIds.size === 0) {
+    const fallbackShape = getAllShapeDefs()[0];
+    if (fallbackShape) state.allowedShapeIds.add(fallbackShape.id);
+  }
+  replaceRemovedShapeInRacks(shapeId);
+  renderPiecePoolList();
 }
 
 function activateDesiredSkill(player) {
@@ -1069,7 +1178,6 @@ function init() {
   buildBoard();
   buildRacks();
   buildDesiredPieceGrid();
-  buildPiecePoolList();
   initAllowedShapes();
   initDesiredPieces();
   resetState();
@@ -1077,6 +1185,7 @@ function init() {
   renderRacks();
   renderSpecialSlot();
   renderSkillButtons();
+  renderPiecePoolList();
   renderPiecePoolButton();
   refreshLayoutMetrics();
 }
@@ -1085,15 +1194,20 @@ desiredPieceBtnEls.forEach((btn, player) => {
   btn.addEventListener('click', () => openDesiredPieceModal(player));
 });
 piecePoolBtn.addEventListener('click', openPiecePoolModal);
+customPieceBtn.addEventListener('click', openCustomPieceModal);
 skillBtnEls.forEach((btn, player) => {
   btn.addEventListener('click', () => activateDesiredSkill(player));
 });
 desiredPieceResetBtn.addEventListener('click', resetDesiredDraft);
-desiredPieceCancelBtn.addEventListener('click', closeDesiredPieceModal);
+desiredPieceCancelBtn.addEventListener('click', () => closeDesiredPieceModal({
+  reopenPiecePool: Boolean(state.pieceEditorDraft?.returnToPiecePool),
+}));
 desiredPieceSaveBtn.addEventListener('click', saveDesiredDraft);
 piecePoolCloseBtn.addEventListener('click', closePiecePoolModal);
 desiredPieceModalEl.addEventListener('click', (event) => {
-  if (event.target === desiredPieceModalEl) closeDesiredPieceModal();
+  if (event.target === desiredPieceModalEl) {
+    closeDesiredPieceModal({ reopenPiecePool: Boolean(state.pieceEditorDraft?.returnToPiecePool) });
+  }
 });
 piecePoolModalEl.addEventListener('click', (event) => {
   if (event.target === piecePoolModalEl) closePiecePoolModal();
@@ -1105,13 +1219,13 @@ window.addEventListener('resize', () => {
   renderRacks();
   renderSpecialSlot();
   renderDesiredPiecePreviews();
-  if (state.desiredDraft) updateDesiredPieceModal();
+  if (state.pieceEditorDraft) updateDesiredPieceModal();
   if (!piecePoolModalEl.classList.contains('hidden')) renderPiecePoolList();
 });
 
 document.addEventListener('keydown', (event) => {
   if (event.key === 'Escape' && !desiredPieceModalEl.classList.contains('hidden')) {
-    closeDesiredPieceModal();
+    closeDesiredPieceModal({ reopenPiecePool: Boolean(state.pieceEditorDraft?.returnToPiecePool) });
   } else if (event.key === 'Escape' && !piecePoolModalEl.classList.contains('hidden')) {
     closePiecePoolModal();
   }
