@@ -726,7 +726,7 @@ function updateTimer() {
 function clampPreparationDuration(value) {
   const parsed = Number(value);
   if (!Number.isFinite(parsed)) return state.prepDuration;
-  return Math.max(MIN_GAME_DURATION, Math.min(MAX_GAME_DURATION, Math.round(parsed)));
+  return Math.max(MIN_GAME_DURATION, Math.min(MAX_GAME_DURATION, parsed));
 }
 
 function renderPreparationDuration() {
@@ -740,6 +740,25 @@ function renderPreparationDuration() {
 function setPreparationDuration(value) {
   state.prepDuration = clampPreparationDuration(value);
   renderPreparationDuration();
+}
+
+function previewPreparationDuration(value) {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return;
+  state.prepDuration = Math.min(MAX_GAME_DURATION, parsed);
+  if (!state.gameActive) {
+    state.timeLeft = state.prepDuration;
+    updateTimer();
+  }
+}
+
+function commitPreparationDuration() {
+  if (!prepTimeInputEl) return;
+  if (!prepTimeInputEl.value) {
+    renderPreparationDuration();
+    return;
+  }
+  setPreparationDuration(prepTimeInputEl.value);
 }
 
 function sizeBoardToFit() {
@@ -1701,6 +1720,7 @@ function initDesiredPieces() {
 }
 
 function startGameFlow() {
+  commitPreparationDuration();
   endOverlayEl.classList.add('hidden');
   overlayEl.classList.add('hidden');
   closeDesiredPieceModal();
@@ -1778,10 +1798,10 @@ customPieceBtn.addEventListener('click', openCustomPieceModal);
 prepTimeInputEl?.addEventListener('input', (event) => {
   const digitsOnly = event.target.value.replace(/[^\d]/g, '');
   event.target.value = digitsOnly;
-  if (digitsOnly) setPreparationDuration(digitsOnly);
+  if (digitsOnly) previewPreparationDuration(digitsOnly);
 });
 prepTimeInputEl?.addEventListener('blur', () => {
-  renderPreparationDuration();
+  commitPreparationDuration();
 });
 skillBtnEls.forEach((btn, player) => {
   btn.addEventListener('click', () => activateDesiredSkill(player));
