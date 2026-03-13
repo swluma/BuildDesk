@@ -254,8 +254,15 @@ function updateTimer() {
 }
 
 function refreshLayoutMetrics() {
-  const boardRect = boardEl.getBoundingClientRect();
   const shellRect = boardShellEl.getBoundingClientRect();
+  const fittedBoardSize = Math.max(0, Math.min(shellRect.width, shellRect.height));
+
+  if (fittedBoardSize > 0) {
+    boardEl.style.width = `${fittedBoardSize}px`;
+    boardEl.style.height = `${fittedBoardSize}px`;
+  }
+
+  const boardRect = boardEl.getBoundingClientRect();
   const cellSize = boardRect.width / BOARD_SIZE;
   state.boardMetrics = {
     left: boardRect.left,

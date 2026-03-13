@@ -221,6 +221,8 @@ body {
 .board {
   position: relative;
   width: min(100%, 54vh);
+  max-width: 100%;
+  max-height: 100%;
   aspect-ratio: 1 / 1;
   display: grid;
   grid-template-columns: repeat(8, 1fr);
@@ -447,5 +449,63 @@ body {
 
   .board {
     padding: 6px;
+  }
+}
+
+@media (max-height: 760px) {
+  .app {
+    grid-template-rows: auto minmax(0, 0.7fr) minmax(0, 1.52fr) minmax(0, 0.78fr);
+    gap: 3px;
+    padding:
+      calc(var(--top-safe) + 6px)
+      calc(var(--side-safe) + 6px)
+      calc(var(--bottom-safe) + 6px);
+  }
+
+  .top-bar {
+    min-height: 36px;
+  }
+
+  .arena {
+    grid-template-columns: minmax(0, 1fr) clamp(70px, 16vw, 96px);
+    gap: 4px;
+  }
+
+  .player-zone,
+  .special-area {
+    gap: 3px;
+  }
+
+  .player-header {
+    padding: 0 2px;
+  }
+
+  .player-top {
+    grid-template-rows: auto minmax(0, 1fr);
+    gap: 2px;
+  }
+
+  .player-top .piece-rack {
+    gap: 4px;
+  }
+
+  .player-top .piece-slot {
+    aspect-ratio: 1.48 / 1;
+  }
+
+  .piece-slot {
+    aspect-ratio: 1.32 / 1;
+  }
+
+  .player-name,
+  .score-box,
+  .special-title,
+  .special-hint {
+    transform: scale(0.96);
+    transform-origin: left center;
+  }
+
+  .score-box {
+    padding: 3px 8px;
   }
 }
