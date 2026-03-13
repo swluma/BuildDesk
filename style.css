@@ -544,6 +544,11 @@ body {
   text-align: center;
 }
 
+.intro-card {
+  max-height: min(92vh, 760px);
+  overflow-y: auto;
+}
+
 .intro-card h1,
 .end-card h2 {
   margin: 0 0 12px;
