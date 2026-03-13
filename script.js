@@ -749,16 +749,18 @@ function estimateNearestPlayer(y) {
 
 function placeDraggedPiece(drag) {
   const { x, y } = drag.candidate;
+  const scoringPlayer = drag.source.sourceType === 'rack' ? drag.source.player : estimateNearestPlayer(y);
   putPieceOnBoard(drag.piece, x, y);
+  state.scores[scoringPlayer] += 1;
   renderBoard();
   renderRacks();
   renderSpecialSlot();
   flashSuccess(drag.originEl);
+  updateScores();
 
   const clearInfo = getClearInfo();
   if (clearInfo.rows.length || clearInfo.cols.length) {
     const scoreResult = scoreForClear(clearInfo.rows, clearInfo.cols);
-    const scoringPlayer = drag.source.sourceType === 'rack' ? drag.source.player : estimateNearestPlayer(y);
     state.scores[scoringPlayer] += scoreResult.points;
     updateScores();
     showScorePopup(scoreResult, getPopupAnchorCell(drag.piece, x, y));
