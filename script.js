@@ -78,6 +78,11 @@ const desiredPieceCountEl = document.getElementById('desired-piece-count');
 const desiredPieceResetBtn = document.getElementById('desired-piece-reset');
 const desiredPieceCancelBtn = document.getElementById('desired-piece-cancel');
 const desiredPieceSaveBtn = document.getElementById('desired-piece-save');
+const piecePoolBtn = document.getElementById('piece-pool-btn');
+const piecePoolModalEl = document.getElementById('piece-pool-modal');
+const piecePoolSummaryEl = document.getElementById('piece-pool-summary');
+const piecePoolListEl = document.getElementById('piece-pool-list');
+const piecePoolCloseBtn = document.getElementById('piece-pool-close');
 
 const state = {
   board: [],
@@ -88,9 +93,11 @@ const state = {
   activeDrags: new Map(),
   specialTiles: new Set(),
   desiredPieces: [],
+  allowedShapeIds: new Set(),
   skillCooldownEndsAt: [0, 0],
   desiredDraft: null,
   desiredGridCells: [],
+  piecePoolCards: [],
   gameActive: false,
   timeLeft: GAME_DURATION,
   timerHandle: null,
@@ -106,6 +113,13 @@ function randomItem(arr) {
 
 function cloneCells(cells) {
   return cells.map(([x, y]) => [x, y]);
+}
+
+function formatShapeLabel(shapeId) {
+  return shapeId
+    .replace(/([A-Z])/g, ' $1')
+    .replace(/([0-9]+)/g, ' $1')
+    .trim();
 }
 
 function dimsForCells(cells) {
@@ -144,7 +158,8 @@ function makePieceFromCells(cells, {
 }
 
 function makePiece() {
-  const shape = randomItem(SHAPES);
+  const availableShapes = SHAPES.filter((shape) => state.allowedShapeIds.has(shape.id));
+  const shape = randomItem(availableShapes.length > 0 ? availableShapes : SHAPES);
   return makePieceFromCells(shape.cells, {
     shapeId: shape.id,
     previewColor: randomItem(COLORS),
@@ -184,6 +199,10 @@ function resetState() {
   scorePopupLayerEl.innerHTML = '';
   updateTimer();
   updateScores();
+}
+
+function initAllowedShapes() {
+  state.allowedShapeIds = new Set(SHAPES.map((shape) => shape.id));
 }
 
 function buildBoard() {
@@ -232,6 +251,43 @@ function buildDesiredPieceGrid() {
       state.desiredGridCells.push(cell);
     }
   }
+}
+
+function buildPiecePoolList() {
+  piecePoolListEl.innerHTML = '';
+  state.piecePoolCards = SHAPES.map((shape, index) => {
+    const cardEl = document.createElement('button');
+    cardEl.type = 'button';
+    cardEl.className = 'piece-pool-item';
+    cardEl.dataset.shapeId = shape.id;
+    cardEl.setAttribute('aria-pressed', 'true');
+    cardEl.addEventListener('click', () => toggleAllowedShape(shape.id));
+
+    const previewEl = document.createElement('div');
+    previewEl.className = 'piece-pool-item-preview';
+
+    const metaEl = document.createElement('div');
+    metaEl.className = 'piece-pool-item-meta';
+
+    const nameEl = document.createElement('div');
+    nameEl.className = 'piece-pool-item-name';
+    nameEl.textContent = formatShapeLabel(shape.id);
+
+    const stateEl = document.createElement('div');
+    stateEl.className = 'piece-pool-item-state';
+
+    metaEl.append(nameEl, stateEl);
+    cardEl.append(previewEl, metaEl);
+    piecePoolListEl.appendChild(cardEl);
+
+    const previewPiece = makePieceFromCells(shape.cells, {
+      shapeId: shape.id,
+      idPrefix: `P${index}`,
+      previewColor: COLORS[index % COLORS.length],
+    });
+
+    return { shapeId: shape.id, cardEl, previewEl, stateEl, previewPiece };
+  });
 }
 
 function fillAllRacks() {
@@ -293,6 +349,23 @@ function renderDesiredPiecePreviews() {
   desiredPiecePreviewEls.forEach((previewEl, player) => {
     renderMiniPiece(previewEl, state.desiredPieces[player], getRenderSlotSize(previewEl, 68), { forceEnabled: true });
   });
+}
+
+function renderPiecePoolButton() {
+  piecePoolBtn.textContent = `Piece Types (${state.allowedShapeIds.size}/${SHAPES.length})`;
+}
+
+function renderPiecePoolList() {
+  const enabledCount = state.allowedShapeIds.size;
+  piecePoolSummaryEl.textContent = `${enabledCount} of ${SHAPES.length} enabled`;
+  state.piecePoolCards.forEach(({ shapeId, cardEl, previewEl, stateEl, previewPiece }) => {
+    const enabled = state.allowedShapeIds.has(shapeId);
+    cardEl.classList.toggle('disabled', !enabled);
+    cardEl.setAttribute('aria-pressed', String(enabled));
+    stateEl.textContent = enabled ? 'Enabled' : 'Disabled';
+    renderMiniPiece(previewEl, previewPiece, getRenderSlotSize(previewEl, 68), { forceEnabled: enabled });
+  });
+  renderPiecePoolButton();
 }
 
 function renderSkillButtons() {
@@ -892,6 +965,7 @@ function updateDesiredPieceModal() {
 }
 
 function openDesiredPieceModal(player) {
+  closePiecePoolModal();
   state.desiredDraft = {
     player,
     cellKeys: new Set(centerCellsInEditor(state.desiredPieces[player].cells)),
@@ -903,6 +977,26 @@ function openDesiredPieceModal(player) {
 function closeDesiredPieceModal() {
   desiredPieceModalEl.classList.add('hidden');
   state.desiredDraft = null;
+}
+
+function openPiecePoolModal() {
+  closeDesiredPieceModal();
+  piecePoolModalEl.classList.remove('hidden');
+  renderPiecePoolList();
+}
+
+function closePiecePoolModal() {
+  piecePoolModalEl.classList.add('hidden');
+}
+
+function toggleAllowedShape(shapeId) {
+  if (state.allowedShapeIds.has(shapeId)) {
+    if (state.allowedShapeIds.size === 1) return;
+    state.allowedShapeIds.delete(shapeId);
+  } else {
+    state.allowedShapeIds.add(shapeId);
+  }
+  renderPiecePoolList();
 }
 
 function toggleDesiredDraftCell(x, y) {
@@ -951,6 +1045,7 @@ function startGameFlow() {
   endOverlayEl.classList.add('hidden');
   overlayEl.classList.add('hidden');
   closeDesiredPieceModal();
+  closePiecePoolModal();
   hidePauseOverlay();
   resetState();
   fillAllRacks();
@@ -970,6 +1065,7 @@ function startGameFlow() {
 function returnToPreparation() {
   endOverlayEl.classList.add('hidden');
   closeDesiredPieceModal();
+  closePiecePoolModal();
   resetState();
   renderBoard();
   renderRacks();
@@ -984,26 +1080,34 @@ function init() {
   buildBoard();
   buildRacks();
   buildDesiredPieceGrid();
+  buildPiecePoolList();
+  initAllowedShapes();
   initDesiredPieces();
   resetState();
   renderBoard();
   renderRacks();
   renderSpecialSlot();
   renderSkillButtons();
+  renderPiecePoolButton();
   refreshLayoutMetrics();
 }
 
 desiredPieceBtnEls.forEach((btn, player) => {
   btn.addEventListener('click', () => openDesiredPieceModal(player));
 });
+piecePoolBtn.addEventListener('click', openPiecePoolModal);
 skillBtnEls.forEach((btn, player) => {
   btn.addEventListener('click', () => activateDesiredSkill(player));
 });
 desiredPieceResetBtn.addEventListener('click', resetDesiredDraft);
 desiredPieceCancelBtn.addEventListener('click', closeDesiredPieceModal);
 desiredPieceSaveBtn.addEventListener('click', saveDesiredDraft);
+piecePoolCloseBtn.addEventListener('click', closePiecePoolModal);
 desiredPieceModalEl.addEventListener('click', (event) => {
   if (event.target === desiredPieceModalEl) closeDesiredPieceModal();
+});
+piecePoolModalEl.addEventListener('click', (event) => {
+  if (event.target === piecePoolModalEl) closePiecePoolModal();
 });
 startBtn.addEventListener('click', startGameFlow);
 restartBtn.addEventListener('click', returnToPreparation);
@@ -1013,11 +1117,14 @@ window.addEventListener('resize', () => {
   renderSpecialSlot();
   renderDesiredPiecePreviews();
   if (state.desiredDraft) updateDesiredPieceModal();
+  if (!piecePoolModalEl.classList.contains('hidden')) renderPiecePoolList();
 });
 
 document.addEventListener('keydown', (event) => {
   if (event.key === 'Escape' && !desiredPieceModalEl.classList.contains('hidden')) {
     closeDesiredPieceModal();
+  } else if (event.key === 'Escape' && !piecePoolModalEl.classList.contains('hidden')) {
+    closePiecePoolModal();
   }
 });
 

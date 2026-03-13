@@ -92,6 +92,7 @@
           ></div>
         </div>
       </div>
+      <button id="piece-pool-btn" class="secondary-btn piece-pool-btn" type="button">Piece Types</button>
       <button id="start-btn" class="primary-btn">Start Game</button>
     </div>
   </div>
@@ -142,6 +143,24 @@
       <h2 id="end-title">GAME OVER</h2>
       <div id="end-summary" class="end-summary"></div>
       <button id="restart-btn" class="primary-btn">Play Again</button>
+    </div>
+  </div>
+
+  <div
+    id="piece-pool-modal"
+    class="overlay hidden piece-pool-modal"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="piece-pool-modal-title"
+  >
+    <div class="overlay-card piece-pool-card">
+      <h2 id="piece-pool-modal-title">PIECE TYPES</h2>
+      <p class="piece-pool-copy">Tap a piece to decide whether it can appear in the normal piece pool.</p>
+      <div id="piece-pool-summary" class="piece-pool-summary">20 of 20 enabled</div>
+      <div id="piece-pool-list" class="piece-pool-list" aria-label="piece type toggles"></div>
+      <div class="piece-pool-actions">
+        <button id="piece-pool-close" class="primary-btn" type="button">Done</button>
+      </div>
     </div>
   </div>
 
