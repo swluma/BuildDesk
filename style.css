@@ -220,7 +220,7 @@ body {
 .arena {
   min-height: 0;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) clamp(72px, 17vw, 108px);
+  grid-template-columns: minmax(0, 1fr) clamp(92px, 22vw, 132px);
   gap: clamp(6px, 2vw, 12px);
   align-items: stretch;
 }
@@ -240,7 +240,7 @@ body {
 
 .board {
   position: relative;
-  width: min(100%, 54vh);
+  width: min(100%, 48vh);
   height: auto;
   max-width: 100%;
   max-height: 100%;
@@ -344,8 +344,24 @@ body {
 .special-area {
   min-height: 0;
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr);
+  grid-template-rows: auto auto minmax(0, 1fr) auto;
   gap: 6px;
+}
+
+.skill-btn {
+  width: 100%;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 14px;
+  padding: 10px 8px;
+  background: rgba(16, 28, 41, 0.92);
+  color: #f2f8fc;
+  font-size: clamp(0.66rem, 2vw, 0.82rem);
+  font-weight: 900;
+  line-height: 1.2;
+}
+
+.skill-btn:disabled {
+  opacity: 0.45;
 }
 
 .special-title {
@@ -694,7 +710,7 @@ body {
   }
 
   .arena {
-    grid-template-columns: minmax(0, 1fr) clamp(58px, 15vw, 84px);
+    grid-template-columns: minmax(0, 1fr) clamp(82px, 20vw, 112px);
     gap: 6px;
   }
 
@@ -719,6 +735,11 @@ body {
 
   .special-title {
     font-size: 0.68rem;
+  }
+
+  .skill-btn {
+    padding: 8px 6px;
+    font-size: 0.62rem;
   }
 
   .special-hint {

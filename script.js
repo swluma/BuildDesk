@@ -7,6 +7,7 @@ const INVALID_FLASH_MS = 3000;
 const SUCCESS_FLASH_MS = 1000;
 const DESIRED_GRID_SIZE = 5;
 const DESIRED_MAX_BLOCKS = 5;
+const DESIRED_SKILL_COST = 15;
 const PLACED_NORMAL = 'normal';
 const PLACED_SPECIAL = 'special';
 
@@ -60,6 +61,7 @@ const startBtn = document.getElementById('start-btn');
 const restartBtn = document.getElementById('restart-btn');
 const pieceSlotTemplate = document.getElementById('piece-slot-template');
 const specialSlotEl = document.getElementById('special-slot');
+const skillBtnEls = [document.getElementById('skill-btn-0'), document.getElementById('skill-btn-1')];
 const desiredPieceBtnEls = [
   document.getElementById('desired-piece-btn-0'),
   document.getElementById('desired-piece-btn-1'),
@@ -155,6 +157,10 @@ function makeDesiredPiece(player, cells = defaultDesiredCells()) {
     idPrefix: `D${player}`,
     previewColor: DESIRED_PREVIEW_COLORS[player] || COLORS[player],
   });
+}
+
+function makeDesiredRackPiece(player) {
+  return makeDesiredPiece(player, state.desiredPieces[player].cells);
 }
 
 function resetState() {
@@ -288,6 +294,14 @@ function renderDesiredPiecePreviews() {
   });
 }
 
+function renderSkillButtons() {
+  skillBtnEls.forEach((btn, player) => {
+    const score = Math.floor(state.scores[player]);
+    btn.textContent = `P${player + 1} Desired (-${DESIRED_SKILL_COST})`;
+    btn.disabled = !state.gameActive || score < DESIRED_SKILL_COST;
+  });
+}
+
 function renderRacks() {
   state.slotEls.forEach((slots, player) => {
     slots.forEach((slotEl, slotIndex) => {
@@ -341,6 +355,7 @@ function updateScores() {
   state.scores.forEach((score, i) => {
     scoreEls[i].textContent = String(Math.floor(score));
   });
+  renderSkillButtons();
 }
 
 function updateTimer() {
@@ -805,6 +820,7 @@ function endGame() {
   state.gameActive = false;
   if (state.timerHandle) clearInterval(state.timerHandle);
   state.timerHandle = null;
+  renderSkillButtons();
   const [a, b] = state.scores;
   let title = 'DRAW';
   if (a > b) title = 'PLAYER 1 WINS';
@@ -879,6 +895,15 @@ function saveDesiredDraft() {
   closeDesiredPieceModal();
 }
 
+function activateDesiredSkill(player) {
+  if (!state.gameActive) return;
+  if (Math.floor(state.scores[player]) < DESIRED_SKILL_COST) return;
+  state.scores[player] -= DESIRED_SKILL_COST;
+  state.racks[player][Math.floor(MAX_RACK / 2)] = makeDesiredRackPiece(player);
+  updateScores();
+  renderRacks();
+}
+
 function initDesiredPieces() {
   state.desiredPieces = [makeDesiredPiece(0), makeDesiredPiece(1)];
   renderDesiredPiecePreviews();
@@ -898,6 +923,7 @@ function startGameFlow() {
   refreshLayoutMetrics();
   startVisibleCountdown('START', 3, () => {
     state.gameActive = true;
+    renderSkillButtons();
     startTimerLoop();
   });
 }
@@ -911,11 +937,15 @@ function init() {
   renderBoard();
   renderRacks();
   renderSpecialSlot();
+  renderSkillButtons();
   refreshLayoutMetrics();
 }
 
 desiredPieceBtnEls.forEach((btn, player) => {
   btn.addEventListener('click', () => openDesiredPieceModal(player));
+});
+skillBtnEls.forEach((btn, player) => {
+  btn.addEventListener('click', () => activateDesiredSkill(player));
 });
 desiredPieceResetBtn.addEventListener('click', resetDesiredDraft);
 desiredPieceCancelBtn.addEventListener('click', closeDesiredPieceModal);
