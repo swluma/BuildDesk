@@ -690,9 +690,7 @@ function handleStuck(triggerPlayer) {
     clearInterval(state.pauseHandle);
     state.pauseHandle = null;
     hidePauseOverlay();
-    startVisibleCountdown('RESUME', RESUME_COUNTDOWN, () => {
-      state.gameActive = true;
-    });
+    state.gameActive = true;
   }, 1000);
 }
 
