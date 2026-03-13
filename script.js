@@ -8,6 +8,7 @@ const SUCCESS_FLASH_MS = 1000;
 const DESIRED_GRID_SIZE = 5;
 const DESIRED_MAX_BLOCKS = 5;
 const DESIRED_SKILL_COST = 15;
+const DESIRED_SKILL_COOLDOWN_MS = 15000;
 const PLACED_NORMAL = 'normal';
 const PLACED_SPECIAL = 'special';
 
@@ -87,12 +88,14 @@ const state = {
   activeDrags: new Map(),
   specialPiece: null,
   desiredPieces: [],
+  skillCooldownEndsAt: [0, 0],
   desiredDraft: null,
   desiredGridCells: [],
   gameActive: false,
   timeLeft: GAME_DURATION,
   timerHandle: null,
   pauseHandle: null,
+  skillUiHandle: null,
   boardMetrics: null,
   scorePopupHandle: null,
 };
@@ -174,10 +177,13 @@ function resetState() {
   state.activeDrags.clear();
   if (state.timerHandle) clearInterval(state.timerHandle);
   if (state.pauseHandle) clearInterval(state.pauseHandle);
+  if (state.skillUiHandle) clearInterval(state.skillUiHandle);
   if (state.scorePopupHandle) clearTimeout(state.scorePopupHandle);
   state.timerHandle = null;
   state.pauseHandle = null;
+  state.skillUiHandle = null;
   state.scorePopupHandle = null;
+  state.skillCooldownEndsAt = [0, 0];
   scorePopupLayerEl.innerHTML = '';
   updateTimer();
   updateScores();
@@ -295,11 +301,37 @@ function renderDesiredPiecePreviews() {
 }
 
 function renderSkillButtons() {
+  const now = Date.now();
   skillBtnEls.forEach((btn, player) => {
     const score = Math.floor(state.scores[player]);
-    btn.textContent = `P${player + 1} Desired (-${DESIRED_SKILL_COST})`;
-    btn.disabled = !state.gameActive || score < DESIRED_SKILL_COST;
+    const cooldownMs = Math.max(0, state.skillCooldownEndsAt[player] - now);
+    const cooldownSeconds = cooldownMs / 1000;
+    const handTurns = cooldownMs > 0 ? cooldownMs / DESIRED_SKILL_COOLDOWN_MS : 0;
+    const canUse = state.gameActive && cooldownMs <= 0 && score >= DESIRED_SKILL_COST;
+
+    btn.disabled = !canUse;
+    btn.classList.toggle('cooldown-active', cooldownMs > 0);
+    btn.classList.toggle('insufficient-score', state.gameActive && cooldownMs <= 0 && score < DESIRED_SKILL_COST);
+    btn.innerHTML = `
+      <span class="skill-btn-label">P${player + 1} Desired</span>
+      <span class="skill-btn-cost">-${DESIRED_SKILL_COST}</span>
+      ${cooldownMs > 0 ? `
+        <span class="skill-watch" aria-hidden="true">
+          <span class="skill-watch-face">
+            <span class="skill-watch-hand" style="transform: translateX(-50%) rotate(${handTurns}turn);"></span>
+          </span>
+        </span>
+        <span class="skill-btn-timer">${cooldownSeconds.toFixed(1)}s</span>
+      ` : ''}
+    `;
   });
+}
+
+function startSkillUiLoop() {
+  if (state.skillUiHandle) clearInterval(state.skillUiHandle);
+  state.skillUiHandle = setInterval(() => {
+    renderSkillButtons();
+  }, 100);
 }
 
 function renderRacks() {
@@ -819,7 +851,9 @@ function startTimerLoop() {
 function endGame() {
   state.gameActive = false;
   if (state.timerHandle) clearInterval(state.timerHandle);
+  if (state.skillUiHandle) clearInterval(state.skillUiHandle);
   state.timerHandle = null;
+  state.skillUiHandle = null;
   renderSkillButtons();
   const [a, b] = state.scores;
   let title = 'DRAW';
@@ -898,7 +932,9 @@ function saveDesiredDraft() {
 function activateDesiredSkill(player) {
   if (!state.gameActive) return;
   if (Math.floor(state.scores[player]) < DESIRED_SKILL_COST) return;
+  if (Date.now() < state.skillCooldownEndsAt[player]) return;
   state.scores[player] -= DESIRED_SKILL_COST;
+  state.skillCooldownEndsAt[player] = Date.now() + DESIRED_SKILL_COOLDOWN_MS;
   state.racks[player][Math.floor(MAX_RACK / 2)] = makeDesiredRackPiece(player);
   updateScores();
   renderRacks();
@@ -923,6 +959,7 @@ function startGameFlow() {
   refreshLayoutMetrics();
   startVisibleCountdown('START', 3, () => {
     state.gameActive = true;
+    startSkillUiLoop();
     renderSkillButtons();
     startTimerLoop();
   });

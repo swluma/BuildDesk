@@ -358,10 +358,85 @@ body {
   font-size: clamp(0.66rem, 2vw, 0.82rem);
   font-weight: 900;
   line-height: 1.2;
+  display: grid;
+  justify-items: center;
+  align-content: center;
+  gap: 4px;
+  min-height: 68px;
 }
 
 .skill-btn:disabled {
   opacity: 0.45;
+}
+
+.skill-btn-label,
+.skill-btn-cost,
+.skill-btn-timer {
+  display: block;
+}
+
+.skill-btn-label {
+  letter-spacing: 0.03em;
+}
+
+.skill-btn-cost {
+  font-size: 0.74em;
+  color: #b9d6c3;
+}
+
+.skill-btn-timer {
+  font-size: 0.82em;
+  color: #93f0a1;
+}
+
+.skill-btn.cooldown-active {
+  opacity: 1;
+  border-color: rgba(123, 244, 127, 0.7);
+  box-shadow: 0 0 0 1px rgba(123, 244, 127, 0.2);
+}
+
+.skill-btn.insufficient-score {
+  border-color: rgba(255, 159, 80, 0.38);
+}
+
+.skill-watch {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.skill-watch-face {
+  position: relative;
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  border: 2px solid #7bf47f;
+  box-shadow:
+    inset 0 0 0 1px rgba(123, 244, 127, 0.15),
+    0 0 10px rgba(123, 244, 127, 0.18);
+}
+
+.skill-watch-face::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 5px;
+  height: 5px;
+  border-radius: 999px;
+  background: #7bf47f;
+  transform: translate(-50%, -50%);
+}
+
+.skill-watch-hand {
+  position: absolute;
+  left: 50%;
+  top: 4px;
+  width: 2px;
+  height: 10px;
+  border-radius: 999px;
+  background: #7bf47f;
+  transform-origin: 50% calc(100% - 1px);
 }
 
 .special-title {
@@ -740,6 +815,17 @@ body {
   .skill-btn {
     padding: 8px 6px;
     font-size: 0.62rem;
+    min-height: 62px;
+  }
+
+  .skill-watch-face {
+    width: 24px;
+    height: 24px;
+  }
+
+  .skill-watch-hand {
+    top: 3px;
+    height: 9px;
   }
 
   .special-hint {
