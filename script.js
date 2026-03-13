@@ -168,9 +168,12 @@ function renderMiniPiece(targetEl, piece, slotSize, { specialPreview = false } =
   targetEl.innerHTML = '';
   if (!piece) return;
 
+  const disabled = isPieceDisabled(piece);
+
   const pieceEl = document.createElement('div');
   pieceEl.className = 'mini-piece';
   pieceEl.dataset.pieceId = piece.id;
+  pieceEl.classList.toggle('disabled', disabled);
 
   const padding = slotSize * 0.08;
   const cellSize = Math.min(
@@ -192,9 +195,13 @@ function renderMiniPiece(targetEl, piece, slotSize, { specialPreview = false } =
     cell.style.height = `${cellSize - 2}px`;
     cell.style.left = `${x * cellSize + 1}px`;
     cell.style.top = `${y * cellSize + 1}px`;
-    const color = specialPreview ? 'linear-gradient(180deg, #ffcf6b, #ff9a2b)' : piece.previewColor;
+    const color = disabled
+      ? 'linear-gradient(180deg, #8e97a0, #56606b)'
+      : (specialPreview ? 'linear-gradient(180deg, #ffcf6b, #ff9a2b)' : piece.previewColor);
     cell.style.background = color;
-    if (piece.special || specialPreview) {
+    if (disabled) {
+      cell.style.boxShadow = 'inset 0 -2px 0 rgba(0,0,0,0.2), inset 0 1px 0 rgba(255,255,255,0.12), 0 0 0 1px rgba(255,255,255,0.08)';
+    } else if (piece.special || specialPreview) {
       cell.style.boxShadow = 'inset 0 -2px 0 rgba(0,0,0,0.22), inset 0 1px 0 rgba(255,255,255,0.24), 0 0 0 1px rgba(255,215,111,0.4)';
     }
     pieceEl.appendChild(cell);
@@ -208,18 +215,22 @@ function renderRacks() {
     slots.forEach((slotEl, slotIndex) => {
       const canvas = slotEl.querySelector('.piece-canvas');
       const piece = state.racks[player][slotIndex] || null;
+      const disabled = isPieceDisabled(piece);
       slotEl.dataset.pieceId = piece ? piece.id : '';
+      slotEl.classList.toggle('disabled', disabled);
       renderMiniPiece(canvas, piece, Math.min(slotEl.clientWidth, slotEl.clientHeight));
-      if (piece) attachPiecePointer(slotEl, piece, { sourceType: 'rack', player, slotIndex });
+      if (piece && !disabled) attachPiecePointer(slotEl, piece, { sourceType: 'rack', player, slotIndex });
       else slotEl.onpointerdown = null;
     });
   });
 }
 
 function renderSpecialSlot() {
+  const disabled = isPieceDisabled(state.specialPiece);
   specialSlotEl.classList.toggle('has-piece', Boolean(state.specialPiece));
-  specialSlotEl.classList.toggle('ready', Boolean(state.specialPiece));
+  specialSlotEl.classList.toggle('ready', Boolean(state.specialPiece) && !disabled);
   specialSlotEl.classList.toggle('empty', !state.specialPiece);
+  specialSlotEl.classList.toggle('disabled', disabled);
 
   let canvas = specialSlotEl.querySelector('.special-canvas');
   if (!canvas) {
@@ -228,7 +239,7 @@ function renderSpecialSlot() {
     specialSlotEl.appendChild(canvas);
   }
   renderMiniPiece(canvas, state.specialPiece, Math.min(specialSlotEl.clientWidth, specialSlotEl.clientHeight), { specialPreview: true });
-  if (state.specialPiece) attachPiecePointer(specialSlotEl, state.specialPiece, { sourceType: 'special' });
+  if (state.specialPiece && !disabled) attachPiecePointer(specialSlotEl, state.specialPiece, { sourceType: 'special' });
   else specialSlotEl.onpointerdown = null;
 }
 
@@ -454,6 +465,10 @@ function canPlacePiece(piece, x, y) {
   });
 }
 
+function isPieceDisabled(piece) {
+  return Boolean(piece) && !anyPlacementForPiece(piece);
+}
+
 function putPieceOnBoard(piece, x, y) {
   piece.cells.forEach(([dx, dy]) => {
     state.board[y + dy][x + dx] = { kind: piece.special ? PLACED_SPECIAL : PLACED_NORMAL };
@@ -580,6 +595,8 @@ function animateAndClear(rows, cols) {
       for (let y = 0; y < BOARD_SIZE; y += 1) state.board[y][x] = null;
     });
     renderBoard();
+    renderRacks();
+    renderSpecialSlot();
   }, 220);
 }
 
@@ -605,6 +622,8 @@ function placeDraggedPiece(drag) {
   const { x, y } = drag.candidate;
   putPieceOnBoard(drag.piece, x, y);
   renderBoard();
+  renderRacks();
+  renderSpecialSlot();
   flashSuccess(drag.originEl);
 
   const clearInfo = getClearInfo();
