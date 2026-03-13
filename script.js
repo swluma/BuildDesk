@@ -52,7 +52,15 @@ const COLORS = [
   '#62d8ff', '#ff7da7', '#ffd36b', '#a78bff', '#6ff1b8', '#ff9f50', '#82f06d', '#4fd2ff', '#ff89f3'
 ];
 
-const DESIRED_PREVIEW_COLORS = ['#62d8ff', '#ff7da7'];
+const PLAYER_PREVIEW_COLORS = [
+  'linear-gradient(180deg, #ff8a9a 0%, #e13b55 100%)',
+  'linear-gradient(180deg, #7fc4ff 0%, #2f74e8 100%)',
+];
+
+const DESIRED_PREVIEW_COLORS = [
+  'linear-gradient(180deg, #ffb1bb 0%, #f04f68 100%)',
+  'linear-gradient(180deg, #a2d6ff 0%, #478cff 100%)',
+];
 
 const SHAPES = [
   { id: 'single', cells: [[0, 0]] },
@@ -214,13 +222,17 @@ function makePieceFromCells(cells, {
   };
 }
 
-function makePiece() {
+function getPlayerPreviewColor(player) {
+  return PLAYER_PREVIEW_COLORS[player] || randomItem(COLORS);
+}
+
+function makePiece(player = null) {
   const allShapes = getAllShapeDefs();
   const availableShapes = allShapes.filter((shape) => state.allowedShapeIds.has(shape.id));
   const shape = randomItem(availableShapes.length > 0 ? availableShapes : allShapes);
   return makePieceFromCells(shape.cells, {
     shapeId: shape.id,
-    previewColor: randomItem(COLORS),
+    previewColor: player === null ? randomItem(COLORS) : getPlayerPreviewColor(player),
   });
 }
 
@@ -430,7 +442,7 @@ function buildDifficultyList() {
 
 function fillAllRacks() {
   for (let player = 0; player < 2; player += 1) {
-    state.racks[player] = Array.from({ length: MAX_RACK }, () => makePiece());
+    state.racks[player] = Array.from({ length: MAX_RACK }, () => makePiece(player));
   }
 }
 
@@ -1195,7 +1207,7 @@ function maybeSpawnSpecialTiles() {
 }
 
 function refillSource(source) {
-  state.racks[source.player][source.slotIndex] = makePiece();
+  state.racks[source.player][source.slotIndex] = makePiece(source.player);
   renderRacks();
 }
 
@@ -1524,10 +1536,10 @@ function saveDesiredDraft() {
 
 function replaceRemovedShapeInRacks(shapeId) {
   let changed = false;
-  state.racks = state.racks.map((rack) => rack.map((piece) => {
+  state.racks = state.racks.map((rack, player) => rack.map((piece) => {
     if (piece?.shapeId !== shapeId) return piece;
     changed = true;
-    return makePiece();
+    return makePiece(player);
   }));
   if (changed) renderRacks();
 }
