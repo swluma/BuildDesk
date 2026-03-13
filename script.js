@@ -39,6 +39,7 @@ const app = document.getElementById('app');
 const boardEl = document.getElementById('board');
 const boardShellEl = document.getElementById('board-shell');
 const ghostLayerEl = document.getElementById('ghost-layer');
+const scorePopupLayerEl = document.getElementById('score-popup-layer');
 const rackEls = [document.getElementById('rack-0'), document.getElementById('rack-1')];
 const scoreEls = [document.getElementById('score-0'), document.getElementById('score-1')];
 const timerEl = document.getElementById('timer');
@@ -70,6 +71,7 @@ const state = {
   timerHandle: null,
   pauseHandle: null,
   boardMetrics: null,
+  scorePopupHandle: null,
 };
 
 function randomItem(arr) {
@@ -116,8 +118,11 @@ function resetState() {
   state.activeDrags.clear();
   if (state.timerHandle) clearInterval(state.timerHandle);
   if (state.pauseHandle) clearInterval(state.pauseHandle);
+  if (state.scorePopupHandle) clearTimeout(state.scorePopupHandle);
   state.timerHandle = null;
   state.pauseHandle = null;
+  state.scorePopupHandle = null;
+  scorePopupLayerEl.innerHTML = '';
   updateTimer();
   updateScores();
 }
@@ -484,13 +489,68 @@ function scoreForClear(rows, cols) {
   });
 
   let baseScore = 0;
+  let specialCount = 0;
   clearSet.forEach((key) => {
     const [x, y] = key.split(',').map(Number);
     const cell = state.board[y][x];
     if (!cell) return;
+    if (cell.kind === PLACED_SPECIAL) specialCount += 1;
     baseScore += cell.kind === PLACED_SPECIAL ? 2 : 1;
   });
-  return baseScore * (rows.length + cols.length);
+  const lineCount = rows.length + cols.length;
+  return {
+    points: baseScore * lineCount,
+    lineCount,
+    specialDoubled: specialCount > 0,
+  };
+}
+
+function getPopupAnchorCell(piece, x, y) {
+  const anchorCell = piece.cells[piece.cells.length - 1] || [0, 0];
+  return { x: x + anchorCell[0], y: y + anchorCell[1] };
+}
+
+function showScorePopup({ lineCount, points, specialDoubled }, anchorCell) {
+  if (!state.boardMetrics) refreshLayoutMetrics();
+
+  if (state.scorePopupHandle) clearTimeout(state.scorePopupHandle);
+  state.scorePopupHandle = null;
+  scorePopupLayerEl.innerHTML = '';
+
+  const popupEl = document.createElement('div');
+  popupEl.className = 'score-popup';
+
+  const linesEl = document.createElement('div');
+  linesEl.className = 'score-popup-lines';
+  linesEl.textContent = `line x${lineCount}!`;
+  popupEl.appendChild(linesEl);
+
+  const pointsEl = document.createElement('div');
+  pointsEl.className = 'score-popup-points';
+  pointsEl.textContent = `+${points}`;
+  popupEl.appendChild(pointsEl);
+
+  if (specialDoubled) {
+    const bonusEl = document.createElement('div');
+    bonusEl.className = 'score-popup-bonus';
+    bonusEl.textContent = 'score x2!';
+    popupEl.appendChild(bonusEl);
+  }
+
+  const cellSize = state.boardMetrics.cellSize;
+  const maxX = state.boardMetrics.width - 20;
+  const maxY = state.boardMetrics.height - 20;
+  const left = Math.min(maxX, Math.max(20, (anchorCell.x + 0.5) * cellSize));
+  const top = Math.min(maxY, Math.max(24, (anchorCell.y + 0.2) * cellSize));
+
+  popupEl.style.left = `${left}px`;
+  popupEl.style.top = `${top}px`;
+
+  scorePopupLayerEl.appendChild(popupEl);
+  state.scorePopupHandle = setTimeout(() => {
+    popupEl.remove();
+    if (state.scorePopupHandle) state.scorePopupHandle = null;
+  }, 3000);
 }
 
 function animateAndClear(rows, cols) {
@@ -549,10 +609,11 @@ function placeDraggedPiece(drag) {
 
   const clearInfo = getClearInfo();
   if (clearInfo.rows.length || clearInfo.cols.length) {
-    const points = scoreForClear(clearInfo.rows, clearInfo.cols);
+    const scoreResult = scoreForClear(clearInfo.rows, clearInfo.cols);
     const scoringPlayer = drag.source.sourceType === 'rack' ? drag.source.player : estimateNearestPlayer(y);
-    state.scores[scoringPlayer] += points;
+    state.scores[scoringPlayer] += scoreResult.points;
     updateScores();
+    showScorePopup(scoreResult, getPopupAnchorCell(drag.piece, x, y));
     animateAndClear(clearInfo.rows, clearInfo.cols);
     maybeSpawnSpecial();
   }
