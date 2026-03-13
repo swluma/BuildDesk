@@ -284,6 +284,7 @@ body {
   border-radius: clamp(5px, 1vw, 8px);
   background: linear-gradient(180deg, #173149, #102538);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  overflow: hidden;
 }
 
 .board-cell.ghost-valid {
@@ -327,7 +328,26 @@ body {
 }
 
 .board-cell.clearing {
-  animation: clear-pop 0.28s ease-out;
+  z-index: 1;
+  animation: clear-frame-flash 0.36s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+}
+
+.board-cell.clearing::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  border: 2px solid rgba(245, 205, 112, 0.82);
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 235, 176, 0.34),
+    0 0 10px rgba(255, 198, 82, 0.28),
+    0 0 18px rgba(255, 171, 46, 0.16);
+  animation: clear-frame-outline 0.36s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+  pointer-events: none;
+}
+
+.board-cell.clearing .board-cell-fill {
+  animation: clear-fill-gold 0.36s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
 }
 
 .ghost-layer {
@@ -1068,10 +1088,77 @@ body {
   }
 }
 
-@keyframes clear-pop {
-  0% { transform: scale(1); opacity: 1; }
-  50% { transform: scale(1.12); opacity: 0.86; }
-  100% { transform: scale(0.86); opacity: 0; }
+@keyframes clear-frame-flash {
+  0% {
+    transform: scale(1);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+    background: linear-gradient(180deg, #173149, #102538);
+  }
+  38% {
+    transform: scale(1.05);
+    box-shadow:
+      inset 0 0 0 1px rgba(241, 210, 136, 0.24),
+      0 0 10px rgba(244, 193, 78, 0.16);
+    background:
+      radial-gradient(circle at 50% 50%, rgba(238, 191, 79, 0.14), transparent 70%),
+      linear-gradient(180deg, #2f2817, #17130d);
+  }
+  100% {
+    transform: scale(1.01);
+    box-shadow:
+      inset 0 0 0 1px rgba(235, 198, 113, 0.42),
+      0 0 8px rgba(239, 182, 61, 0.1);
+    background:
+      radial-gradient(circle at 50% 50%, rgba(238, 200, 103, 0.12), transparent 74%),
+      linear-gradient(180deg, #342917, #1b140b);
+  }
+}
+
+@keyframes clear-frame-outline {
+  0% {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+  35% {
+    opacity: 0.72;
+    transform: scale(1.08);
+  }
+  100% {
+    opacity: 0.56;
+    transform: scale(1.02);
+  }
+}
+
+@keyframes clear-fill-gold {
+  0% {
+    opacity: 1;
+    transform: scale(1);
+    filter: saturate(1) brightness(1);
+    box-shadow:
+      inset 0 -2px 0 rgba(0, 0, 0, 0.18),
+      inset 0 1px 0 rgba(255, 255, 255, 0.2),
+      0 4px 8px rgba(0, 0, 0, 0.18);
+  }
+  40% {
+    opacity: 1;
+    transform: scale(1.04);
+    background: linear-gradient(180deg, #f6df97 0%, #eeb14f 52%, #cb8421 100%);
+    filter: saturate(1.12) brightness(1.05);
+    box-shadow:
+      inset 0 -2px 0 rgba(128, 79, 15, 0.28),
+      inset 0 1px 0 rgba(245, 225, 166, 0.42),
+      0 0 10px rgba(239, 187, 72, 0.22);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(0.74);
+    background: linear-gradient(180deg, #f7e5ab 0%, #efc468 54%, #c8861b 100%);
+    filter: saturate(1.18) brightness(1.08);
+    box-shadow:
+      inset 0 -2px 0 rgba(128, 79, 15, 0.22),
+      inset 0 1px 0 rgba(245, 225, 166, 0.32),
+      0 0 12px rgba(239, 187, 72, 0.16);
+  }
 }
 
 @keyframes score-popup-life {

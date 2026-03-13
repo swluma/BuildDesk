@@ -6,6 +6,7 @@ const SPECIAL_TILE_COUNT = 3;
 const RESUME_COUNTDOWN = 3;
 const INVALID_FLASH_MS = 800;
 const SUCCESS_FLASH_MS = 700;
+const CLEAR_ANIMATION_MS = 360;
 const DESIRED_GRID_SIZE = 5;
 const DESIRED_MAX_BLOCKS = 5;
 const DESIRED_SKILL_COST = 15;
@@ -1266,7 +1267,7 @@ function animateAndClear(rows, cols, consumedSpecialTiles = []) {
     renderBoard();
     renderRacks();
     renderSpecialSlot();
-  }, 220);
+  }, CLEAR_ANIMATION_MS);
 }
 
 function maybeSpawnSpecialTiles() {
