@@ -384,12 +384,14 @@ function renderPiecePoolButton() {
 }
 
 function renderPiecePoolList() {
+  const scrollTop = piecePoolListEl.scrollTop;
   buildPiecePoolList();
   const totalCount = getAllShapeDefs().length;
   const enabledCount = state.allowedShapeIds.size;
   piecePoolSummaryEl.textContent = `${enabledCount} of ${totalCount} enabled`;
   customPieceBtn.textContent = `Add Custom Piece (${state.customShapes.length}/${MAX_CUSTOM_PIECES})`;
   customPieceBtn.disabled = state.customShapes.length >= MAX_CUSTOM_PIECES;
+  piecePoolListEl.scrollTop = scrollTop;
   renderPiecePoolButton();
 }
 
