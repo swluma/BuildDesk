@@ -1835,6 +1835,21 @@ window.addEventListener('resize', () => {
   if (!piecePoolModalEl.classList.contains('hidden')) renderPiecePoolList();
 });
 
+function hasScrollableParent(target) {
+  let node = target instanceof Element ? target : null;
+  while (node && node !== document.body) {
+    if (node instanceof HTMLElement) {
+      const style = window.getComputedStyle(node);
+      const overflowY = style.overflowY;
+      if ((overflowY === 'auto' || overflowY === 'scroll') && node.scrollHeight > node.clientHeight + 1) {
+        return true;
+      }
+    }
+    node = node.parentElement;
+  }
+  return false;
+}
+
 document.addEventListener('keydown', (event) => {
   if (event.key === 'Escape' && !desiredPieceModalEl.classList.contains('hidden')) {
     closeDesiredPieceModal({ reopenPiecePool: Boolean(state.pieceEditorDraft?.returnToPiecePool) });
@@ -1846,6 +1861,7 @@ document.addEventListener('keydown', (event) => {
 });
 
 document.addEventListener('touchmove', (event) => {
+  if (hasScrollableParent(event.target)) return;
   event.preventDefault();
 }, { passive: false });
 
