@@ -604,8 +604,15 @@ function renderBoard() {
 }
 
 function updateScores() {
+  const highestScore = Math.max(...state.scores);
+  const leaderCount = state.scores.filter((score) => score === highestScore).length;
+
   state.scores.forEach((score, i) => {
     scoreEls[i].textContent = String(Math.floor(score));
+    const scoreBoxEl = scoreEls[i].parentElement;
+    if (scoreBoxEl) {
+      scoreBoxEl.classList.toggle('leader', leaderCount === 1 && score === highestScore);
+    }
   });
   renderSkillButtons();
 }
