@@ -965,6 +965,19 @@ function startGameFlow() {
   });
 }
 
+function returnToPreparation() {
+  endOverlayEl.classList.add('hidden');
+  closeDesiredPieceModal();
+  resetState();
+  renderBoard();
+  renderRacks();
+  renderSpecialSlot();
+  renderDesiredPiecePreviews();
+  renderSkillButtons();
+  overlayEl.classList.remove('hidden');
+  refreshLayoutMetrics();
+}
+
 function init() {
   buildBoard();
   buildRacks();
@@ -991,7 +1004,7 @@ desiredPieceModalEl.addEventListener('click', (event) => {
   if (event.target === desiredPieceModalEl) closeDesiredPieceModal();
 });
 startBtn.addEventListener('click', startGameFlow);
-restartBtn.addEventListener('click', startGameFlow);
+restartBtn.addEventListener('click', returnToPreparation);
 window.addEventListener('resize', () => {
   refreshLayoutMetrics();
   renderRacks();
