@@ -1031,15 +1031,15 @@ function refillSource(source) {
 
 function clearComputerMoveTimer() {
   if (!state.computerMoveHandle) return;
-  clearTimeout(state.computerMoveHandle);
+  clearInterval(state.computerMoveHandle);
   state.computerMoveHandle = null;
 }
 
 function scheduleComputerMove() {
-  clearComputerMoveTimer();
   if (!state.gameActive || !state.vsComputer) return;
-  state.computerMoveHandle = setTimeout(() => {
-    state.computerMoveHandle = null;
+  if (state.computerMoveHandle) return;
+  state.computerMoveHandle = setInterval(() => {
+    if (!state.gameActive || !state.vsComputer) return;
     runComputerTurn();
   }, COMPUTER_MOVE_DELAY_MS);
 }
@@ -1085,7 +1085,6 @@ function placeDraggedPiece(drag) {
 
   refillSource(drag.source);
   setTimeout(() => checkForStuckAfterMove(drag.source.player), 240);
-  if (isComputerPlayer(scoringPlayer) || state.vsComputer) scheduleComputerMove();
 }
 
 function checkForStuckAfterMove(triggerPlayer) {
