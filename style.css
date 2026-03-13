@@ -168,20 +168,17 @@ body {
   animation: blink-red 0.45s linear 7;
 }
 
-.piece-slot.drag-origin,
-.special-slot.drag-origin {
+.piece-slot.drag-origin {
   border-color: rgba(255, 255, 255, 0.2);
 }
 
-.piece-slot.disabled,
-.special-slot.disabled {
+.piece-slot.disabled {
   border-color: rgba(190, 198, 207, 0.18);
   background:
     linear-gradient(180deg, rgba(54, 63, 72, 0.9), rgba(29, 35, 41, 0.92));
 }
 
-.piece-slot.disabled,
-.special-slot.disabled {
+.piece-slot.disabled {
   cursor: not-allowed;
 }
 
@@ -190,8 +187,7 @@ body {
   opacity: 0.8;
 }
 
-.piece-canvas,
-.special-canvas {
+.piece-canvas {
   position: absolute;
   inset: 0;
 }
@@ -277,12 +273,26 @@ body {
     0 4px 8px rgba(0, 0, 0, 0.18);
 }
 
-.board-cell-fill.normal {
+.board-cell.special-tile {
+  background:
+    radial-gradient(circle at 50% 30%, rgba(255, 220, 124, 0.55), transparent 62%),
+    linear-gradient(180deg, #7c4b11, #4f2e09);
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 215, 111, 0.32),
+    inset 0 1px 0 rgba(255, 252, 233, 0.12),
+    0 0 14px rgba(255, 154, 43, 0.14);
+}
+
+.board-cell-fill {
   background: linear-gradient(180deg, #c7ff64, #8ce734);
 }
 
-.board-cell-fill.special {
-  background: linear-gradient(180deg, #ffbf55, #ff8522);
+.board-cell-fill.on-special-tile {
+  box-shadow:
+    inset 0 -2px 0 rgba(0, 0, 0, 0.18),
+    inset 0 1px 0 rgba(255, 255, 255, 0.2),
+    0 0 0 2px rgba(255, 196, 97, 0.72),
+    0 4px 8px rgba(0, 0, 0, 0.18);
 }
 
 .board-cell.clearing {
@@ -452,6 +462,8 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
+  position: relative;
+  padding: 12px 10px;
   border-color: rgba(255, 215, 111, 0.35);
   background: linear-gradient(180deg, rgba(55, 42, 12, 0.34), rgba(16, 14, 8, 0.95));
 }
@@ -467,26 +479,12 @@ body {
     0 0 24px rgba(255, 180, 44, 0.2);
 }
 
-.special-slot.disabled {
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.03),
-    0 0 0 1px rgba(255, 255, 255, 0.05);
-}
-
-.special-slot.drag-origin {
-  border-color: rgba(255, 215, 111, 0.9);
-}
-
 .special-hint {
   width: 80%;
   text-align: center;
   font-size: clamp(0.65rem, 2.2vw, 0.78rem);
   line-height: 1.35;
   color: #d1b879;
-}
-
-.special-slot.has-piece .special-hint {
-  display: none;
 }
 
 .overlay {

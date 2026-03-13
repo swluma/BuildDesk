@@ -2,6 +2,7 @@ const BOARD_SIZE = 8;
 const MAX_RACK = 3;
 const GAME_DURATION = 180;
 const SPECIAL_SPAWN_CHANCE = 0.05;
+const SPECIAL_TILE_COUNT = 3;
 const RESUME_COUNTDOWN = 3;
 const INVALID_FLASH_MS = 3000;
 const SUCCESS_FLASH_MS = 1000;
@@ -9,8 +10,6 @@ const DESIRED_GRID_SIZE = 5;
 const DESIRED_MAX_BLOCKS = 5;
 const DESIRED_SKILL_COST = 15;
 const DESIRED_SKILL_COOLDOWN_MS = 15000;
-const PLACED_NORMAL = 'normal';
-const PLACED_SPECIAL = 'special';
 
 const COLORS = [
   '#62d8ff', '#ff7da7', '#ffd36b', '#a78bff', '#6ff1b8', '#ff9f50', '#82f06d', '#4fd2ff', '#ff89f3'
@@ -62,6 +61,7 @@ const startBtn = document.getElementById('start-btn');
 const restartBtn = document.getElementById('restart-btn');
 const pieceSlotTemplate = document.getElementById('piece-slot-template');
 const specialSlotEl = document.getElementById('special-slot');
+const specialHintEl = specialSlotEl.querySelector('.special-hint');
 const skillBtnEls = [document.getElementById('skill-btn-0'), document.getElementById('skill-btn-1')];
 const desiredPieceBtnEls = [
   document.getElementById('desired-piece-btn-0'),
@@ -86,7 +86,7 @@ const state = {
   slotEls: [[], []],
   boardCells: [],
   activeDrags: new Map(),
-  specialPiece: null,
+  specialTiles: new Set(),
   desiredPieces: [],
   skillCooldownEndsAt: [0, 0],
   desiredDraft: null,
@@ -128,29 +128,26 @@ function editorCoordsToCells(cellKeys) {
 }
 
 function makePieceFromCells(cells, {
-  special = false,
   shapeId = 'custom',
   previewColor = null,
   idPrefix = null,
 } = {}) {
   const dims = dimsForCells(cloneCells(cells));
   return {
-    id: `${idPrefix || (special ? 'S' : 'N')}-${Math.random().toString(36).slice(2, 10)}`,
+    id: `${idPrefix || 'N'}-${Math.random().toString(36).slice(2, 10)}`,
     shapeId,
     cells: dims.cells,
     width: dims.width,
     height: dims.height,
-    previewColor: previewColor || (special ? '#ffb54a' : randomItem(COLORS)),
-    special,
+    previewColor: previewColor || randomItem(COLORS),
   };
 }
 
-function makePiece({ special = false } = {}) {
+function makePiece() {
   const shape = randomItem(SHAPES);
   return makePieceFromCells(shape.cells, {
-    special,
     shapeId: shape.id,
-    previewColor: special ? '#ffb54a' : randomItem(COLORS),
+    previewColor: randomItem(COLORS),
   });
 }
 
@@ -170,7 +167,7 @@ function resetState() {
   state.board = Array.from({ length: BOARD_SIZE }, () => Array.from({ length: BOARD_SIZE }, () => null));
   state.scores = [0, 0];
   state.racks = [[], []];
-  state.specialPiece = null;
+  state.specialTiles = new Set();
   state.timeLeft = GAME_DURATION;
   state.gameActive = false;
   state.activeDrags.forEach(cancelDragVisuals);
@@ -247,7 +244,7 @@ function getRenderSlotSize(targetEl, fallback = 72) {
   return Math.max(24, Math.min(targetEl.clientWidth || fallback, targetEl.clientHeight || fallback));
 }
 
-function renderMiniPiece(targetEl, piece, slotSize, { specialPreview = false, forceEnabled = false } = {}) {
+function renderMiniPiece(targetEl, piece, slotSize, { forceEnabled = false } = {}) {
   targetEl.innerHTML = '';
   if (!piece) return;
 
@@ -281,12 +278,10 @@ function renderMiniPiece(targetEl, piece, slotSize, { specialPreview = false, fo
     cell.style.top = `${y * cellSize + 1}px`;
     const color = disabled
       ? 'linear-gradient(180deg, #8e97a0, #56606b)'
-      : (specialPreview ? 'linear-gradient(180deg, #ffcf6b, #ff9a2b)' : piece.previewColor);
+      : piece.previewColor;
     cell.style.background = color;
     if (disabled) {
       cell.style.boxShadow = 'inset 0 -2px 0 rgba(0,0,0,0.2), inset 0 1px 0 rgba(255,255,255,0.12), 0 0 0 1px rgba(255,255,255,0.08)';
-    } else if (piece.special || specialPreview) {
-      cell.style.boxShadow = 'inset 0 -2px 0 rgba(0,0,0,0.22), inset 0 1px 0 rgba(255,255,255,0.24), 0 0 0 1px rgba(255,215,111,0.4)';
     }
     pieceEl.appendChild(cell);
   });
@@ -350,21 +345,14 @@ function renderRacks() {
 }
 
 function renderSpecialSlot() {
-  const disabled = isPieceDisabled(state.specialPiece);
-  specialSlotEl.classList.toggle('has-piece', Boolean(state.specialPiece));
-  specialSlotEl.classList.toggle('ready', Boolean(state.specialPiece) && !disabled);
-  specialSlotEl.classList.toggle('empty', !state.specialPiece);
-  specialSlotEl.classList.toggle('disabled', disabled);
-
-  let canvas = specialSlotEl.querySelector('.special-canvas');
-  if (!canvas) {
-    canvas = document.createElement('div');
-    canvas.className = 'special-canvas';
-    specialSlotEl.appendChild(canvas);
-  }
-  renderMiniPiece(canvas, state.specialPiece, Math.min(specialSlotEl.clientWidth, specialSlotEl.clientHeight), { specialPreview: true });
-  if (state.specialPiece && !disabled) attachPiecePointer(specialSlotEl, state.specialPiece, { sourceType: 'special' });
-  else specialSlotEl.onpointerdown = null;
+  const tileCount = state.specialTiles.size;
+  specialSlotEl.classList.toggle('empty', tileCount === 0);
+  specialSlotEl.classList.toggle('ready', tileCount > 0);
+  specialSlotEl.classList.remove('disabled', 'has-piece', 'drag-origin');
+  specialSlotEl.onpointerdown = null;
+  specialHintEl.textContent = tileCount > 0
+    ? `${tileCount} special ${tileCount === 1 ? 'tile is' : 'tiles are'} active`
+    : '5% chance after a line clear';
 }
 
 function renderBoard() {
@@ -372,11 +360,14 @@ function renderBoard() {
     for (let x = 0; x < BOARD_SIZE; x += 1) {
       const cellEl = state.boardCells[y][x];
       cellEl.classList.remove('clearing', 'ghost-valid', 'ghost-invalid');
+      cellEl.classList.toggle('special-tile', state.specialTiles.has(`${x},${y}`));
       cellEl.innerHTML = '';
       const cellState = state.board[y][x];
       if (cellState) {
         const fill = document.createElement('div');
-        fill.className = `board-cell-fill ${cellState.kind}`;
+        fill.className = 'board-cell-fill';
+        if (state.specialTiles.has(`${x},${y}`)) fill.classList.add('on-special-tile');
+        fill.style.background = cellState.previewColor;
         cellEl.appendChild(fill);
       }
     }
@@ -451,10 +442,7 @@ function createDragElement(piece, cellSize) {
     cell.style.height = `${cellSize - 2}px`;
     cell.style.left = `${x * cellSize + 1}px`;
     cell.style.top = `${y * cellSize + 1}px`;
-    cell.style.background = piece.special
-      ? 'linear-gradient(180deg, #ffd26f, #ff9f2e)'
-      : piece.previewColor;
-    if (piece.special) cell.style.border = '1px solid rgba(255, 215, 111, 0.7)';
+    cell.style.background = piece.previewColor;
     dragEl.appendChild(cell);
   });
 
@@ -600,8 +588,12 @@ function isPieceDisabled(piece) {
 
 function putPieceOnBoard(piece, x, y) {
   piece.cells.forEach(([dx, dy]) => {
-    state.board[y + dy][x + dx] = { kind: piece.special ? PLACED_SPECIAL : PLACED_NORMAL };
+    state.board[y + dy][x + dx] = { previewColor: piece.previewColor };
   });
+}
+
+function specialTileKey(x, y) {
+  return `${x},${y}`;
 }
 
 function getClearInfo() {
@@ -633,19 +625,21 @@ function scoreForClear(rows, cols) {
   });
 
   let baseScore = 0;
-  let specialCount = 0;
+  const consumedSpecialTiles = [];
   clearSet.forEach((key) => {
     const [x, y] = key.split(',').map(Number);
     const cell = state.board[y][x];
     if (!cell) return;
-    if (cell.kind === PLACED_SPECIAL) specialCount += 1;
-    baseScore += cell.kind === PLACED_SPECIAL ? 2 : 1;
+    baseScore += 1;
+    if (state.specialTiles.has(key)) consumedSpecialTiles.push(key);
   });
   const lineCount = rows.length + cols.length;
+  const specialDoubled = consumedSpecialTiles.length > 0;
   return {
-    points: baseScore * lineCount,
+    points: baseScore * lineCount * (specialDoubled ? 2 : 1),
     lineCount,
-    specialDoubled: specialCount > 0,
+    specialDoubled,
+    consumedSpecialTiles,
   };
 }
 
@@ -695,7 +689,7 @@ function showScorePopup({ lineCount, points, specialDoubled }, anchorCell) {
   }, 3000);
 }
 
-function animateAndClear(rows, cols) {
+function animateAndClear(rows, cols, consumedSpecialTiles = []) {
   const seen = new Set();
   rows.forEach((y) => {
     for (let x = 0; x < BOARD_SIZE; x += 1) {
@@ -721,35 +715,41 @@ function animateAndClear(rows, cols) {
     cols.forEach((x) => {
       for (let y = 0; y < BOARD_SIZE; y += 1) state.board[y][x] = null;
     });
+    consumedSpecialTiles.forEach((key) => state.specialTiles.delete(key));
     renderBoard();
     renderRacks();
     renderSpecialSlot();
   }, 220);
 }
 
-function maybeSpawnSpecial() {
-  if (state.specialPiece || Math.random() >= SPECIAL_SPAWN_CHANCE) return;
-  state.specialPiece = makePiece({ special: true });
+function maybeSpawnSpecialTiles() {
+  if (Math.random() >= SPECIAL_SPAWN_CHANCE) return;
+  const availableTiles = [];
+  for (let y = 0; y < BOARD_SIZE; y += 1) {
+    for (let x = 0; x < BOARD_SIZE; x += 1) {
+      const key = specialTileKey(x, y);
+      if (!state.specialTiles.has(key)) availableTiles.push(key);
+    }
+  }
+  if (!availableTiles.length) return;
+  const spawnCount = Math.min(SPECIAL_TILE_COUNT, availableTiles.length);
+  for (let i = 0; i < spawnCount; i += 1) {
+    const pickIndex = Math.floor(Math.random() * availableTiles.length);
+    const [tileKey] = availableTiles.splice(pickIndex, 1);
+    state.specialTiles.add(tileKey);
+  }
+  renderBoard();
   renderSpecialSlot();
 }
 
 function refillSource(source) {
-  if (source.sourceType === 'rack') {
-    state.racks[source.player][source.slotIndex] = makePiece();
-    renderRacks();
-    return;
-  }
-  state.specialPiece = null;
-  renderSpecialSlot();
-}
-
-function estimateNearestPlayer(y) {
-  return y < BOARD_SIZE / 2 ? 0 : 1;
+  state.racks[source.player][source.slotIndex] = makePiece();
+  renderRacks();
 }
 
 function placeDraggedPiece(drag) {
   const { x, y } = drag.candidate;
-  const scoringPlayer = drag.source.sourceType === 'rack' ? drag.source.player : estimateNearestPlayer(y);
+  const scoringPlayer = drag.source.player;
   putPieceOnBoard(drag.piece, x, y);
   state.scores[scoringPlayer] += 1;
   renderBoard();
@@ -764,12 +764,12 @@ function placeDraggedPiece(drag) {
     state.scores[scoringPlayer] += scoreResult.points;
     updateScores();
     showScorePopup(scoreResult, getPopupAnchorCell(drag.piece, x, y));
-    animateAndClear(clearInfo.rows, clearInfo.cols);
-    maybeSpawnSpecial();
+    animateAndClear(clearInfo.rows, clearInfo.cols, scoreResult.consumedSpecialTiles);
+    maybeSpawnSpecialTiles();
   }
 
   refillSource(drag.source);
-  setTimeout(() => checkForStuckAfterMove(drag.source.sourceType === 'rack' ? drag.source.player : estimateNearestPlayer(y)), 240);
+  setTimeout(() => checkForStuckAfterMove(drag.source.player), 240);
 }
 
 function checkForStuckAfterMove(triggerPlayer) {
@@ -791,8 +791,8 @@ function hidePauseOverlay() {
 
 function clearBoardAndRefreshPieces() {
   state.board = Array.from({ length: BOARD_SIZE }, () => Array.from({ length: BOARD_SIZE }, () => null));
+  state.specialTiles = new Set();
   fillAllRacks();
-  state.specialPiece = null;
   renderBoard();
   renderRacks();
   renderSpecialSlot();
