@@ -653,30 +653,31 @@ body {
 .piece-pool-list {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px;
-  margin-top: 14px;
-  max-height: min(58vh, 460px);
+  gap: 6px;
+  margin-top: 12px;
+  max-height: min(60vh, 500px);
   overflow-y: auto;
-  padding-right: 4px;
+  padding-right: 2px;
 }
 
 .piece-pool-item {
   display: grid;
-  grid-template-columns: 56px minmax(0, 1fr);
-  gap: 8px;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 4px;
+  justify-items: center;
   align-items: center;
   width: 100%;
-  padding: 9px;
+  padding: 8px 6px 7px;
   border: 1px solid rgba(123, 229, 110, 0.2);
-  border-radius: 14px;
+  border-radius: 12px;
   background:
     radial-gradient(circle at top left, rgba(141, 255, 117, 0.16), transparent 52%),
     linear-gradient(180deg, rgba(24, 48, 34, 0.92), rgba(12, 25, 18, 0.96));
   color: var(--text);
-  text-align: left;
+  text-align: center;
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.05),
-    0 10px 20px rgba(0, 0, 0, 0.18);
+    0 8px 16px rgba(0, 0, 0, 0.16);
 }
 
 .piece-pool-item.disabled {
@@ -687,9 +688,9 @@ body {
 
 .piece-pool-item-preview {
   position: relative;
-  width: 56px;
-  height: 56px;
-  border-radius: 12px;
+  width: 60px;
+  height: 60px;
+  border-radius: 10px;
   background: rgba(7, 16, 24, 0.32);
   border: 1px solid rgba(255, 255, 255, 0.08);
   overflow: hidden;
@@ -701,22 +702,16 @@ body {
 
 .piece-pool-item-meta {
   display: grid;
-  gap: 4px;
+  gap: 0;
   min-width: 0;
-}
-
-.piece-pool-item-name {
-  font-size: 0.8rem;
-  font-weight: 900;
-  letter-spacing: 0.02em;
-  text-transform: capitalize;
-  line-height: 1.15;
+  width: 100%;
 }
 
 .piece-pool-item-state {
-  font-size: 0.68rem;
+  font-size: 0.64rem;
   font-weight: 800;
   color: rgba(229, 255, 220, 0.86);
+  line-height: 1;
 }
 
 .piece-pool-item.disabled .piece-pool-item-state {
@@ -1004,19 +999,13 @@ body {
     border-radius: 10px;
   }
 
-  .piece-pool-list {
-    grid-template-columns: 1fr;
-  }
-
   .piece-pool-item {
-    grid-template-columns: 64px minmax(0, 1fr);
-    gap: 10px;
-    padding: 10px;
+    padding: 7px 5px 6px;
   }
 
   .piece-pool-item-preview {
-    width: 64px;
-    height: 64px;
+    width: 52px;
+    height: 52px;
   }
 
   .secondary-btn,
@@ -1073,7 +1062,7 @@ body {
   }
 
   .piece-pool-list {
-    max-height: min(52vh, 380px);
-    margin-top: 12px;
+    max-height: min(54vh, 400px);
+    margin-top: 10px;
   }
 }

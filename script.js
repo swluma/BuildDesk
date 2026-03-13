@@ -115,13 +115,6 @@ function cloneCells(cells) {
   return cells.map(([x, y]) => [x, y]);
 }
 
-function formatShapeLabel(shapeId) {
-  return shapeId
-    .replace(/([A-Z])/g, ' $1')
-    .replace(/([0-9]+)/g, ' $1')
-    .trim();
-}
-
 function dimsForCells(cells) {
   const xs = cells.map(([x]) => x);
   const ys = cells.map(([, y]) => y);
@@ -269,14 +262,10 @@ function buildPiecePoolList() {
     const metaEl = document.createElement('div');
     metaEl.className = 'piece-pool-item-meta';
 
-    const nameEl = document.createElement('div');
-    nameEl.className = 'piece-pool-item-name';
-    nameEl.textContent = formatShapeLabel(shape.id);
-
     const stateEl = document.createElement('div');
     stateEl.className = 'piece-pool-item-state';
 
-    metaEl.append(nameEl, stateEl);
+    metaEl.appendChild(stateEl);
     cardEl.append(previewEl, metaEl);
     piecePoolListEl.appendChild(cardEl);
 
