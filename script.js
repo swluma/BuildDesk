@@ -253,16 +253,29 @@ function updateTimer() {
   timerEl.textContent = String(Math.max(0, Math.ceil(state.timeLeft)));
 }
 
+function sizeBoardToFit() {
+  const availableWidth = Math.max(0, boardShellEl.clientWidth - 12);
+  const availableHeight = Math.max(0, boardShellEl.clientHeight - 12);
+  const size = Math.max(120, Math.floor(Math.min(availableWidth, availableHeight)));
+  boardEl.style.width = `${size}px`;
+  boardEl.style.height = `${size}px`;
+}
+
+function fitAppScale() {
+  app.style.transform = 'scale(1)';
+  const viewportWidth = window.innerWidth;
+  const viewportHeight = window.innerHeight;
+  const naturalWidth = Math.max(app.scrollWidth, app.clientWidth);
+  const naturalHeight = Math.max(app.scrollHeight, app.clientHeight);
+  const scale = Math.min(1, viewportWidth / naturalWidth, viewportHeight / naturalHeight);
+  app.style.transform = `scale(${scale})`;
+}
+
 function refreshLayoutMetrics() {
-  const shellRect = boardShellEl.getBoundingClientRect();
-  const fittedBoardSize = Math.max(0, Math.min(shellRect.width, shellRect.height));
-
-  if (fittedBoardSize > 0) {
-    boardEl.style.width = `${fittedBoardSize}px`;
-    boardEl.style.height = `${fittedBoardSize}px`;
-  }
-
+  sizeBoardToFit();
+  fitAppScale();
   const boardRect = boardEl.getBoundingClientRect();
+  const shellRect = boardShellEl.getBoundingClientRect();
   const cellSize = boardRect.width / BOARD_SIZE;
   state.boardMetrics = {
     left: boardRect.left,

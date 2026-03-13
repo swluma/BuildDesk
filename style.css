@@ -54,6 +54,7 @@ body {
     calc(var(--top-safe) + 8px)
     calc(var(--side-safe) + 8px)
     calc(var(--bottom-safe) + 8px);
+  transform-origin: top center;
 }
 
 .top-bar {
@@ -129,6 +130,8 @@ body {
   min-height: 0;
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-auto-rows: 1fr;
+  align-items: stretch;
   gap: clamp(6px, 1.2vw, 10px);
 }
 
@@ -200,7 +203,7 @@ body {
 .arena {
   min-height: 0;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) clamp(82px, 19vw, 120px);
+  grid-template-columns: minmax(0, 1fr) clamp(72px, 17vw, 108px);
   gap: clamp(6px, 2vw, 12px);
   align-items: stretch;
 }
@@ -221,6 +224,7 @@ body {
 .board {
   position: relative;
   width: min(100%, 54vh);
+  height: auto;
   max-width: 100%;
   max-height: 100%;
   aspect-ratio: 1 / 1;
@@ -439,23 +443,10 @@ body {
   100% { transform: scale(0.86); opacity: 0; }
 }
 
-@media (max-width: 420px) {
-  .piece-slot,
-  .special-slot,
-  .board-shell,
-  .overlay-card {
-    border-radius: 16px;
-  }
-
-  .board {
-    padding: 6px;
-  }
-}
 
 @media (max-height: 760px) {
   .app {
-    grid-template-rows: auto minmax(0, 0.7fr) minmax(0, 1.52fr) minmax(0, 0.78fr);
-    gap: 3px;
+    gap: 4px;
     padding:
       calc(var(--top-safe) + 6px)
       calc(var(--side-safe) + 6px)
@@ -466,46 +457,59 @@ body {
     min-height: 36px;
   }
 
-  .arena {
-    grid-template-columns: minmax(0, 1fr) clamp(70px, 16vw, 96px);
+  .player-zone,
+  .special-area {
     gap: 4px;
   }
 
-  .player-zone,
-  .special-area {
-    gap: 3px;
+  .piece-slot {
+    aspect-ratio: auto;
+    height: 100%;
+  }
+
+  .arena {
+    grid-template-columns: minmax(0, 1fr) clamp(58px, 15vw, 84px);
+    gap: 6px;
+  }
+
+  .board {
+    padding: 6px;
+    gap: 2px;
+  }
+}
+
+@media (max-height: 700px) {
+  .brand {
+    font-size: clamp(0.86rem, 2.5vw, 1rem);
   }
 
   .player-header {
     padding: 0 2px;
   }
 
-  .player-top {
-    grid-template-rows: auto minmax(0, 1fr);
-    gap: 2px;
-  }
-
-  .player-top .piece-rack {
-    gap: 4px;
-  }
-
-  .player-top .piece-slot {
-    aspect-ratio: 1.48 / 1;
-  }
-
-  .piece-slot {
-    aspect-ratio: 1.32 / 1;
-  }
-
-  .player-name,
-  .score-box,
-  .special-title,
-  .special-hint {
-    transform: scale(0.96);
-    transform-origin: left center;
-  }
-
   .score-box {
     padding: 3px 8px;
+  }
+
+  .special-title {
+    font-size: 0.68rem;
+  }
+
+  .special-hint {
+    width: 92%;
+    font-size: 0.58rem;
+  }
+}
+
+@media (max-width: 420px) {
+  .piece-slot,
+  .special-slot,
+  .board-shell,
+  .overlay-card {
+    border-radius: 16px;
+  }
+
+  .board {
+    padding: 6px;
   }
 }
