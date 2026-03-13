@@ -619,10 +619,12 @@ body {
 
 .desired-piece-card {
   width: min(100%, 430px);
+  max-height: min(92vh, 680px);
+  overflow-y: auto;
 }
 
 .desired-piece-copy {
-  margin: 10px 0 0;
+  margin: 8px 0 0;
   color: #d3e4ef;
   line-height: 1.4;
 }
@@ -630,14 +632,14 @@ body {
 .desired-piece-editor {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 116px;
-  gap: 14px;
-  margin-top: 18px;
+  gap: 12px;
+  margin-top: 14px;
 }
 
 .desired-piece-grid {
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
-  gap: 8px;
+  gap: 7px;
 }
 
 .desired-grid-cell {
@@ -659,7 +661,7 @@ body {
 .desired-piece-sidebar {
   display: grid;
   grid-template-rows: auto minmax(0, 1fr) auto auto;
-  gap: 10px;
+  gap: 8px;
   align-items: start;
 }
 
@@ -684,7 +686,7 @@ body {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 10px;
-  margin-top: 18px;
+  margin-top: 14px;
 }
 
 .countdown-title,
@@ -848,6 +850,15 @@ body {
 }
 
 @media (max-width: 460px) {
+  .desired-piece-card {
+    width: min(100%, 350px);
+    padding: 18px 16px;
+  }
+
+  .desired-piece-copy {
+    font-size: 0.92rem;
+  }
+
   .prep-player-card {
     grid-template-columns: minmax(0, 1fr) 74px;
     gap: 10px;
@@ -861,19 +872,71 @@ body {
 
   .desired-piece-editor {
     grid-template-columns: 1fr;
+    gap: 10px;
+    margin-top: 12px;
   }
 
   .desired-piece-sidebar {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     grid-template-rows: auto auto;
+    gap: 8px 10px;
     align-items: center;
   }
 
   .desired-piece-live-preview {
-    max-width: 120px;
+    max-width: 96px;
   }
 
   .desired-piece-actions {
     grid-template-columns: 1fr;
+    gap: 8px;
+    margin-top: 12px;
+  }
+
+  .desired-grid-cell {
+    border-radius: 10px;
+  }
+
+  .secondary-btn,
+  .primary-btn {
+    padding: 11px 12px;
+  }
+}
+
+@media (max-height: 720px) {
+  .desired-piece-card {
+    max-height: 88vh;
+    padding: 18px 16px;
+  }
+
+  .desired-piece-copy {
+    font-size: 0.9rem;
+    margin-top: 6px;
+  }
+
+  .desired-piece-editor {
+    gap: 10px;
+    margin-top: 10px;
+  }
+
+  .desired-piece-grid {
+    gap: 6px;
+  }
+
+  .desired-grid-cell {
+    border-radius: 10px;
+  }
+
+  .desired-piece-sidebar {
+    gap: 6px;
+  }
+
+  .desired-piece-live-preview {
+    max-width: 88px;
+  }
+
+  .desired-piece-actions {
+    margin-top: 10px;
+    gap: 8px;
   }
 }
