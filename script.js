@@ -131,6 +131,7 @@ const app = document.getElementById('app');
 const boardEl = document.getElementById('board');
 const boardShellEl = document.getElementById('board-shell');
 const scorePopupLayerEl = document.getElementById('score-popup-layer');
+const boardEffectLayerEl = document.getElementById('board-effect-layer');
 const rackEls = [document.getElementById('rack-0'), document.getElementById('rack-1')];
 const scoreEls = [document.getElementById('score-0'), document.getElementById('score-1')];
 const timerEl = document.getElementById('timer');
@@ -149,8 +150,6 @@ const restartBtn = document.getElementById('restart-btn');
 const vsComputerBtn = document.getElementById('vs-computer-btn');
 const prepTimeInputEl = document.getElementById('prep-time-input');
 const pieceSlotTemplate = document.getElementById('piece-slot-template');
-const specialSlotEl = document.getElementById('special-slot');
-const specialSlotStatusEl = document.getElementById('special-slot-status');
 const skillBtnEls = [document.getElementById('skill-btn-0'), document.getElementById('skill-btn-1')];
 const playerNameEls = [
   document.getElementById('player-name-0'),
@@ -216,6 +215,7 @@ const state = {
   skillUiHandle: null,
   boardMetrics: null,
   scorePopupHandle: null,
+  boardEffectHandle: null,
   vsComputer: false,
   computerMoveHandle: null,
   computerDifficulty: 'normal',
@@ -676,13 +676,7 @@ function renderRacks() {
 }
 
 function renderSpecialSlot() {
-  const tileCount = state.specialTiles.size;
-  specialSlotEl.classList.toggle('empty', tileCount === 0);
-  specialSlotEl.classList.toggle('ready', tileCount > 0);
-  specialSlotEl.classList.remove('disabled', 'has-piece', 'drag-origin');
-  specialSlotEl.onpointerdown = null;
-  specialSlotStatusEl.textContent = String(tileCount);
-  specialSlotStatusEl.setAttribute('aria-label', tileCount > 0 ? `${tileCount} special tiles active` : 'No special tiles active');
+  return;
 }
 
 function renderBoard() {
@@ -1280,6 +1274,54 @@ function showScorePopup({ lineCount, points, specialDoubled }, anchorCell) {
   }, 1000);
 }
 
+function showBoardEffectPopup(label, detail, anchorCell, variant = 'special') {
+  if (!boardEffectLayerEl) return;
+  if (!state.boardMetrics) refreshLayoutMetrics();
+
+  if (state.boardEffectHandle) clearTimeout(state.boardEffectHandle);
+  state.boardEffectHandle = null;
+  boardEffectLayerEl.innerHTML = '';
+
+  const effectEl = document.createElement('div');
+  effectEl.className = `board-effect-popup ${variant}`;
+
+  const labelEl = document.createElement('div');
+  labelEl.className = 'board-effect-label';
+  labelEl.textContent = label;
+  effectEl.appendChild(labelEl);
+
+  if (detail) {
+    const detailEl = document.createElement('div');
+    detailEl.className = 'board-effect-detail';
+    detailEl.textContent = detail;
+    effectEl.appendChild(detailEl);
+  }
+
+  const cellSize = state.boardMetrics.cellSize;
+  const left = Math.min(state.boardMetrics.width - 24, Math.max(24, (anchorCell.x + 0.5) * cellSize));
+  const top = Math.min(state.boardMetrics.height - 24, Math.max(28, (anchorCell.y + 0.5) * cellSize));
+
+  effectEl.style.left = `${left}px`;
+  effectEl.style.top = `${top}px`;
+  boardEffectLayerEl.appendChild(effectEl);
+
+  state.boardEffectHandle = setTimeout(() => {
+    effectEl.remove();
+    state.boardEffectHandle = null;
+  }, 720);
+}
+
+function getSpecialEffectAnchor(consumedSpecialTiles, rows, cols) {
+  if (consumedSpecialTiles.length) {
+    const coords = consumedSpecialTiles.map((key) => key.split(',').map(Number));
+    const total = coords.reduce((acc, [x, y]) => ({ x: acc.x + x, y: acc.y + y }), { x: 0, y: 0 });
+    return { x: total.x / coords.length, y: total.y / coords.length };
+  }
+  if (rows.length) return { x: (BOARD_SIZE - 1) / 2, y: rows[0] };
+  if (cols.length) return { x: cols[0], y: (BOARD_SIZE - 1) / 2 };
+  return { x: (BOARD_SIZE - 1) / 2, y: (BOARD_SIZE - 1) / 2 };
+}
+
 function animateAndClear(rows, cols, consumedSpecialTiles = []) {
   const seen = new Set();
   rows.forEach((y) => {
@@ -1298,6 +1340,12 @@ function animateAndClear(rows, cols, consumedSpecialTiles = []) {
       state.boardCells[y][x].classList.add('clearing');
     }
   });
+
+  if (consumedSpecialTiles.length) {
+    const effectAnchor = getSpecialEffectAnchor(consumedSpecialTiles, rows, cols);
+    const clearLabel = rows.length + cols.length > 1 ? 'CHAIN CLEAR' : 'LINE CLEAR';
+    showBoardEffectPopup(clearLabel, 'Special tile triggered', effectAnchor, 'special');
+  }
 
   setTimeout(() => {
     rows.forEach((y) => {
