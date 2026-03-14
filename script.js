@@ -618,6 +618,7 @@ function renderPiecePoolButton() {
 }
 
 function renderModeUi() {
+  app.classList.toggle('vs-computer-mode', state.vsComputer);
   playerNameEls.forEach((el, player) => {
     el.textContent = getPlayerDisplayName(player);
   });
@@ -1370,7 +1371,7 @@ function showScorePopup({ lineCount, points, specialDoubled }, anchorCell, playe
 
   const popupEl = document.createElement('div');
   popupEl.className = 'score-popup';
-  if (player === 0) popupEl.classList.add('player-top-clear');
+  if (player === 0 && !state.vsComputer) popupEl.classList.add('player-top-clear');
 
   const linesEl = document.createElement('div');
   linesEl.className = 'score-popup-lines';
