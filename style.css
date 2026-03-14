@@ -47,7 +47,7 @@ body {
   width: 100%;
   height: 100dvh;
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr) minmax(0, 1.05fr) minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 0.9fr) minmax(0, 1.38fr) minmax(0, 0.9fr);
   gap: clamp(6px, 1vh, 10px);
   touch-action: none;
   padding:
@@ -247,8 +247,8 @@ body {
 .arena {
   min-height: 0;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) clamp(92px, 22vw, 132px);
-  gap: clamp(6px, 2vw, 12px);
+  grid-template-columns: minmax(0, 1fr) clamp(72px, 16vw, 120px);
+  gap: clamp(4px, 1.6vw, 10px);
   align-items: stretch;
 }
 
@@ -275,8 +275,8 @@ body {
   display: grid;
   grid-template-columns: repeat(8, 1fr);
   grid-template-rows: repeat(8, 1fr);
-  gap: clamp(2px, 0.55vw, 4px);
-  padding: clamp(8px, 1.6vw, 12px);
+  gap: clamp(1px, 0.45vw, 3px);
+  padding: clamp(5px, 1.1vw, 10px);
 }
 
 .board-cell {
@@ -1251,6 +1251,7 @@ body {
 @media (max-height: 760px) {
   .app {
     gap: 4px;
+    grid-template-rows: auto minmax(0, 0.88fr) minmax(0, 1.44fr) minmax(0, 0.88fr);
     padding:
       calc(var(--top-safe) + 6px)
       calc(var(--side-safe) + 6px)
@@ -1272,13 +1273,13 @@ body {
   }
 
   .arena {
-    grid-template-columns: minmax(0, 1fr) clamp(82px, 20vw, 112px);
-    gap: 6px;
+    grid-template-columns: minmax(0, 1fr) clamp(68px, 18vw, 104px);
+    gap: 5px;
   }
 
   .board {
-    padding: 6px;
-    gap: 2px;
+    padding: 5px;
+    gap: 1px;
   }
 }
 
@@ -1332,6 +1333,23 @@ body {
 
   .board {
     padding: 6px;
+  }
+}
+
+@media (max-width: 640px) {
+  .arena {
+    grid-template-columns: minmax(0, 1fr) clamp(62px, 17vw, 90px);
+    gap: 4px;
+  }
+
+  .board {
+    padding: 4px;
+    gap: 1px;
+  }
+
+  .skill-btn {
+    min-height: 60px;
+    padding: 8px 4px;
   }
 }
 
