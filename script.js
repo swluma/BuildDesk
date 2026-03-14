@@ -15,7 +15,6 @@ const DESIRED_MAX_BLOCKS = 5;
 const DEFAULT_DESIRED_SKILL_COST = 15;
 const DEFAULT_DESIRED_SKILL_COOLDOWN_MS = 15000;
 const MAX_CUSTOM_PIECES = 10;
-const COMPUTER_PLAYER = 0;
 const SETTINGS_STORAGE_KEY = 'blockblast_duel_settings_v1';
 
 const COMPUTER_DIFFICULTIES = {
@@ -167,7 +166,10 @@ const endSummaryEl = document.getElementById('end-summary');
 const endTitleEl = document.getElementById('end-title');
 const startBtn = document.getElementById('start-btn');
 const restartBtn = document.getElementById('restart-btn');
-const vsComputerBtn = document.getElementById('vs-computer-btn');
+const computerModeBtnEls = [
+  document.getElementById('computer-mode-btn-0'),
+  document.getElementById('computer-mode-btn-1'),
+];
 const prepTimeInputEl = document.getElementById('prep-time-input');
 const specialSpawnBtn = document.getElementById('special-spawn-btn');
 const specialSpawnModalEl = document.getElementById('special-spawn-modal');
@@ -247,10 +249,14 @@ const toggleCustomPiecesBtn = document.getElementById('toggle-custom-pieces-btn'
 const piecePoolListEl = document.getElementById('piece-pool-list');
 const customPieceBtn = document.getElementById('custom-piece-btn');
 const piecePoolCloseBtn = document.getElementById('piece-pool-close');
-const computerDifficultyBtn = document.getElementById('computer-difficulty-btn');
+const computerDifficultyBtnEls = [
+  document.getElementById('computer-difficulty-btn-0'),
+  document.getElementById('computer-difficulty-btn-1'),
+];
 const difficultyModalEl = document.getElementById('difficulty-modal');
 const difficultyListEl = document.getElementById('difficulty-list');
 const difficultyCloseBtn = document.getElementById('difficulty-close');
+const difficultyModalTitleEl = document.getElementById('difficulty-modal-title');
 const gameDescriptionModalEl = document.getElementById('game-description-modal');
 const gameDescriptionCloseBtn = document.getElementById('game-description-close');
 
@@ -288,9 +294,10 @@ const state = {
   skillUiHandle: null,
   boardMetrics: null,
   scorePopupHandle: null,
-  vsComputer: false,
-  computerMoveHandle: null,
-  computerDifficulty: 'normal',
+  computerPlayers: [false, false],
+  computerMoveHandles: [null, null],
+  computerDifficulties: ['normal', 'normal'],
+  activeDifficultyPlayer: 0,
 };
 
 let settingsCopyToastHandle = null;
@@ -486,12 +493,14 @@ function resetState() {
   if (state.pauseHandle) clearInterval(state.pauseHandle);
   if (state.skillUiHandle) clearInterval(state.skillUiHandle);
   if (state.scorePopupHandle) clearTimeout(state.scorePopupHandle);
-  if (state.computerMoveHandle) clearTimeout(state.computerMoveHandle);
+  state.computerMoveHandles.forEach((handle) => {
+    if (handle) clearTimeout(handle);
+  });
   state.timerHandle = null;
   state.pauseHandle = null;
   state.skillUiHandle = null;
   state.scorePopupHandle = null;
-  state.computerMoveHandle = null;
+  state.computerMoveHandles = [null, null];
   state.skillCooldownEndsAt = [0, 0];
   scorePopupLayerEl.innerHTML = '';
   updateTimer();
@@ -500,24 +509,33 @@ function resetState() {
 }
 
 function isComputerPlayer(player) {
-  return state.vsComputer && player === COMPUTER_PLAYER;
+  return Boolean(state.computerPlayers[player]);
+}
+
+function hasComputerPlayers() {
+  return state.computerPlayers.some(Boolean);
+}
+
+function isSingleBottomHumanView() {
+  return isComputerPlayer(0) && !isComputerPlayer(1);
 }
 
 function getPlayerDisplayName(player) {
   if (isComputerPlayer(player)) return 'COMPUTER';
-  return state.vsComputer && player === 1 ? 'PLAYER' : `PLAYER ${player + 1}`;
+  return `PLAYER ${player + 1}`;
 }
 
 function getSkillLabel(player) {
   return isComputerPlayer(player) ? 'CPU Desired' : `P${player + 1} Desired`;
 }
 
-function getComputerDifficultyConfig() {
-  return COMPUTER_DIFFICULTIES[state.computerDifficulty] || COMPUTER_DIFFICULTIES.normal;
+function getComputerDifficultyConfig(player) {
+  const key = state.computerDifficulties[player];
+  return COMPUTER_DIFFICULTIES[key] || COMPUTER_DIFFICULTIES.normal;
 }
 
-function getComputerDifficultyLabel() {
-  return getComputerDifficultyConfig().label;
+function getComputerDifficultyLabel(player) {
+  return getComputerDifficultyConfig(player).label;
 }
 
 function getCommonShapeIds() {
@@ -544,8 +562,9 @@ function applyDefaultSettings() {
   state.prepDesiredSkillCost = DEFAULT_DESIRED_SKILL_COST;
   state.prepDesiredSkillCooldownMs = DEFAULT_DESIRED_SKILL_COOLDOWN_MS;
   state.desiredSkillEnabled = true;
-  state.vsComputer = false;
-  state.computerDifficulty = 'normal';
+  state.computerPlayers = [false, false];
+  state.computerDifficulties = ['normal', 'normal'];
+  state.activeDifficultyPlayer = 0;
   initAllowedShapes();
   initDesiredPieces();
   if (!state.matchInProgress) {
@@ -661,20 +680,21 @@ function buildPiecePoolList() {
 }
 
 function buildDifficultyList() {
+  const player = state.activeDifficultyPlayer;
   difficultyListEl.innerHTML = '';
   Object.entries(COMPUTER_DIFFICULTIES).forEach(([key, config]) => {
     const optionEl = document.createElement('button');
     optionEl.type = 'button';
     optionEl.className = 'difficulty-option';
-    optionEl.classList.toggle('active', key === state.computerDifficulty);
-    optionEl.setAttribute('aria-pressed', String(key === state.computerDifficulty));
+    optionEl.classList.toggle('active', key === state.computerDifficulties[player]);
+    optionEl.setAttribute('aria-pressed', String(key === state.computerDifficulties[player]));
     optionEl.addEventListener('click', () => {
-      state.computerDifficulty = key;
+      state.computerDifficulties[player] = key;
       renderModeUi();
       buildDifficultyList();
-      if (state.vsComputer && state.gameActive) {
-        clearComputerMoveTimer();
-        scheduleComputerMove();
+      if (isComputerPlayer(player) && state.gameActive) {
+        clearComputerMoveTimer(player);
+        scheduleComputerMove(player);
       }
       persistSettingsToStorage();
     });
@@ -817,20 +837,29 @@ function renderPiecePoolButton() {
 }
 
 function renderModeUi() {
-  app.classList.toggle('vs-computer-mode', state.vsComputer);
+  app.classList.toggle('vs-computer-mode', isSingleBottomHumanView());
   playerNameEls.forEach((el, player) => {
     el.textContent = getPlayerDisplayName(player);
   });
-  if (prepPlayerLabelEls[0]) prepPlayerLabelEls[0].textContent = state.vsComputer ? 'COMPUTER' : 'PLAYER 1';
-  if (prepPlayerLabelEls[1]) prepPlayerLabelEls[1].textContent = state.vsComputer ? 'PLAYER' : 'PLAYER 2';
-  const computerSetupLabel = state.vsComputer ? 'Computer Piece' : 'Desired Piece';
-  const humanSetupLabel = state.vsComputer ? 'Your Piece' : 'Desired Piece';
-  desiredPieceBtnEls[0].textContent = computerSetupLabel;
-  desiredPieceBtnEls[1].textContent = humanSetupLabel;
-  computerDifficultyBtn.classList.toggle('hidden', !state.vsComputer);
-  computerDifficultyBtn.textContent = `Difficulty: ${getComputerDifficultyLabel()}`;
-  vsComputerBtn.textContent = `VS Computer: ${state.vsComputer ? 'On' : 'Off'}`;
-  vsComputerBtn.classList.toggle('active', state.vsComputer);
+  prepPlayerLabelEls.forEach((el, player) => {
+    if (el) el.textContent = getPlayerDisplayName(player);
+  });
+  desiredPieceBtnEls.forEach((btn, player) => {
+    btn.textContent = isComputerPlayer(player) ? 'Computer Piece' : 'Desired Piece';
+  });
+  computerModeBtnEls.forEach((btn, player) => {
+    if (!btn) return;
+    const enabled = isComputerPlayer(player);
+    btn.textContent = `Computer: ${enabled ? 'On' : 'Off'}`;
+    btn.classList.toggle('active', enabled);
+    btn.setAttribute('aria-pressed', String(enabled));
+  });
+  computerDifficultyBtnEls.forEach((btn, player) => {
+    if (!btn) return;
+    const enabled = isComputerPlayer(player);
+    btn.classList.toggle('hidden', !enabled);
+    btn.textContent = `Difficulty: ${getComputerDifficultyLabel(player)}`;
+  });
   renderBlockStyleButtons();
   renderBlockStyleModal();
 }
@@ -1113,8 +1142,8 @@ function getSettingsPayload() {
     prepDesiredSkillCost: state.prepDesiredSkillCost,
     prepDesiredSkillCooldownMs: state.prepDesiredSkillCooldownMs,
     desiredSkillEnabled: state.desiredSkillEnabled,
-    vsComputer: state.vsComputer,
-    computerDifficulty: state.computerDifficulty,
+    computerPlayers: [...state.computerPlayers],
+    computerDifficulties: [...state.computerDifficulties],
     playerColorThemeIndexes: [...state.playerColorThemeIndexes],
     playerCustomColors: [...state.playerCustomColors],
     playerGlowLevels: [...state.playerGlowLevels],
@@ -1200,8 +1229,18 @@ function applySettingsPayload(payload, { persist = true } = {}) {
   state.prepDesiredSkillCost = Math.max(0, Math.min(100, Math.floor(Number(payload.prepDesiredSkillCost) || 0)));
   state.prepDesiredSkillCooldownMs = Math.max(0, Math.min(100000, Math.floor(Number(payload.prepDesiredSkillCooldownMs) || 0)));
   state.desiredSkillEnabled = Boolean(payload.desiredSkillEnabled);
-  state.vsComputer = Boolean(payload.vsComputer);
-  state.computerDifficulty = COMPUTER_DIFFICULTIES[payload.computerDifficulty] ? payload.computerDifficulty : 'normal';
+  state.computerPlayers = [0, 1].map((player) => {
+    if (Array.isArray(payload.computerPlayers)) return Boolean(payload.computerPlayers[player]);
+    return player === 0 ? Boolean(payload.vsComputer) : false;
+  });
+  state.computerDifficulties = [0, 1].map((player) => {
+    if (Array.isArray(payload.computerDifficulties)) {
+      const key = payload.computerDifficulties[player];
+      return COMPUTER_DIFFICULTIES[key] ? key : 'normal';
+    }
+    return COMPUTER_DIFFICULTIES[payload.computerDifficulty] ? payload.computerDifficulty : 'normal';
+  });
+  state.activeDifficultyPlayer = 0;
   state.playerColorThemeIndexes = [0, 1].map((player) => {
     const index = Number(payload.playerColorThemeIndexes?.[player]);
     return PLAYER_COLOR_THEMES[index] ? index : player;
@@ -1780,7 +1819,7 @@ function countPlacementsOnBoard(board, piece) {
 }
 
 function evaluatePlacement(piece, x, y, {
-  rack = state.racks[COMPUTER_PLAYER],
+  rack = state.racks[piece.player] || [],
   specialTiles = state.specialTiles,
 } = {}) {
   const simulatedBoard = cloneBoard();
@@ -1867,7 +1906,7 @@ function compareComputerMoves(a, b, config) {
 
 function pickBestComputerMoveForRack(rack, {
   useSkill = false,
-  config = getComputerDifficultyConfig(),
+  config = getComputerDifficultyConfig(0),
 } = {}) {
   const moves = [];
   const specialTiles = config.considerSpecialTiles ? state.specialTiles : new Set();
@@ -1913,17 +1952,17 @@ function canUseDesiredSkill(player, { allowComputer = false } = {}) {
   return true;
 }
 
-function getComputerMovePlan() {
-  const config = getComputerDifficultyConfig();
-  const currentRack = state.racks[COMPUTER_PLAYER];
+function getComputerMovePlan(player) {
+  const config = getComputerDifficultyConfig(player);
+  const currentRack = state.racks[player];
   const regularMove = pickBestComputerMoveForRack(currentRack, { config, useSkill: false });
-  if (!config.allowDesiredSkill || !canUseDesiredSkill(COMPUTER_PLAYER, { allowComputer: true })) {
+  if (!config.allowDesiredSkill || !canUseDesiredSkill(player, { allowComputer: true })) {
     return regularMove;
   }
 
   const desiredSlotIndex = Math.floor(MAX_RACK / 2);
   const skillRack = currentRack.map((piece, index) => (
-    index === desiredSlotIndex ? makeDesiredRackPiece(COMPUTER_PLAYER) : piece
+    index === desiredSlotIndex ? makeDesiredRackPiece(player) : piece
   ));
   const skillMove = pickBestComputerMoveForRack(skillRack, { config, useSkill: true });
   if (!skillMove) return regularMove;
@@ -1945,7 +1984,7 @@ function showScorePopup({ lineCount, points, specialDoubled }, anchorCell, playe
 
   const popupEl = document.createElement('div');
   popupEl.className = 'score-popup';
-  if (player === 0 && !state.vsComputer) popupEl.classList.add('player-top-clear');
+  if (player === 0 && !isSingleBottomHumanView()) popupEl.classList.add('player-top-clear');
 
   const linesEl = document.createElement('div');
   linesEl.className = 'score-popup-lines';
@@ -2065,43 +2104,52 @@ function refillSource(source) {
   renderRacks();
 }
 
-function clearComputerMoveTimer() {
-  if (!state.computerMoveHandle) return;
-  clearInterval(state.computerMoveHandle);
-  state.computerMoveHandle = null;
+function clearComputerMoveTimer(player = null) {
+  const players = player === null ? [0, 1] : [player];
+  players.forEach((targetPlayer) => {
+    const handle = state.computerMoveHandles[targetPlayer];
+    if (!handle) return;
+    clearTimeout(handle);
+    state.computerMoveHandles[targetPlayer] = null;
+  });
 }
 
-function scheduleComputerMove() {
-  if (!state.gameActive || !state.vsComputer) return;
-  if (state.computerMoveHandle) return;
-  const { intervalMs } = getComputerDifficultyConfig();
-  state.computerMoveHandle = setInterval(() => {
-    if (!state.gameActive || !state.vsComputer) return;
-    runComputerTurn();
-  }, intervalMs);
+function scheduleComputerMove(player = null) {
+  const players = player === null ? [0, 1] : [player];
+  players.forEach((targetPlayer) => {
+    if (!state.gameActive || !isComputerPlayer(targetPlayer)) return;
+    if (state.computerMoveHandles[targetPlayer]) return;
+    const { intervalMs } = getComputerDifficultyConfig(targetPlayer);
+    state.computerMoveHandles[targetPlayer] = setTimeout(() => {
+      state.computerMoveHandles[targetPlayer] = null;
+      if (!state.gameActive || !isComputerPlayer(targetPlayer)) return;
+      runComputerTurn(targetPlayer);
+      scheduleComputerMove(targetPlayer);
+    }, intervalMs);
+  });
 }
 
-function runComputerTurn() {
-  if (!state.gameActive || !state.vsComputer) return;
-  const move = getComputerMovePlan();
+function runComputerTurn(player) {
+  if (!state.gameActive || !isComputerPlayer(player)) return;
+  const move = getComputerMovePlan(player);
   if (!move) return;
 
   if (move.useSkill) {
-    const activated = activateDesiredSkill(COMPUTER_PLAYER, { allowComputer: true });
+    const activated = activateDesiredSkill(player, { allowComputer: true });
     if (!activated) return;
   }
 
   const slotIndex = move.slotIndex;
   if (slotIndex < 0) return;
-  const originEl = state.slotEls[COMPUTER_PLAYER][slotIndex];
+  const originEl = state.slotEls[player][slotIndex];
   if (!originEl) return;
-  const piece = state.racks[COMPUTER_PLAYER][slotIndex];
+  const piece = state.racks[player][slotIndex];
   if (!piece || !canPlacePiece(piece, move.x, move.y)) return;
 
   placeDraggedPiece({
     piece,
     candidate: { x: move.x, y: move.y },
-    source: { sourceType: 'rack', player: COMPUTER_PLAYER, slotIndex },
+    source: { sourceType: 'rack', player, slotIndex },
     originEl,
   });
 }
@@ -2277,9 +2325,11 @@ function endGame() {
   endOverlayEl.classList.remove('hidden');
 }
 
-function toggleVsComputer() {
-  state.vsComputer = !state.vsComputer;
+function toggleComputerMode(player) {
+  state.computerPlayers[player] = !state.computerPlayers[player];
   closeDifficultyModal();
+  if (!state.computerPlayers[player]) clearComputerMoveTimer(player);
+  else if (state.gameActive) scheduleComputerMove(player);
   renderModeUi();
   renderDesiredPiecePreviews();
   renderSkillButtons();
@@ -2287,8 +2337,9 @@ function toggleVsComputer() {
   persistSettingsToStorage();
 }
 
-function openDifficultyModal() {
-  if (!state.vsComputer) return;
+function openDifficultyModal(player) {
+  if (!isComputerPlayer(player)) return;
+  state.activeDifficultyPlayer = player;
   closeSettingsTransferModal();
   closeBlockStyleModal();
   closeGameDescriptionModal();
@@ -2297,6 +2348,7 @@ function openDifficultyModal() {
   closeSpecialSpawnModal();
   closeStuckPenaltyModal();
   closeDesiredSkillSettingsModal();
+  if (difficultyModalTitleEl) difficultyModalTitleEl.textContent = `${getPlayerDisplayName(player)} DIFFICULTY`;
   difficultyModalEl.classList.remove('hidden');
   buildDifficultyList();
 }
@@ -2764,7 +2816,6 @@ function init() {
   buildRacks();
   buildDesiredPieceGrid();
   buildBlockStyleOptions();
-  buildDifficultyList();
   initAllowedShapes();
   initDesiredPieces();
   const loadedStoredSettings = loadSettingsFromStorage();
@@ -2816,8 +2867,12 @@ specialSpawnBtn.addEventListener('click', openSpecialSpawnModal);
 stuckPenaltyBtn.addEventListener('click', openStuckPenaltyModal);
 desiredSkillSettingsBtn.addEventListener('click', openDesiredSkillSettingsModal);
 gameDescriptionBtn.addEventListener('click', openGameDescriptionModal);
-vsComputerBtn.addEventListener('click', toggleVsComputer);
-computerDifficultyBtn.addEventListener('click', openDifficultyModal);
+computerModeBtnEls.forEach((btn, player) => {
+  btn?.addEventListener('click', () => toggleComputerMode(player));
+});
+computerDifficultyBtnEls.forEach((btn, player) => {
+  btn?.addEventListener('click', () => openDifficultyModal(player));
+});
 customPieceBtn.addEventListener('click', openCustomPieceModal);
 toggleCommonPiecesBtn?.addEventListener('click', () => {
   toggleShapeGroup(getCommonShapeIds());
