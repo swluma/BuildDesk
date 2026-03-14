@@ -214,6 +214,7 @@ const settingsUploadInputEl = document.getElementById('settings-upload-input');
 const settingsTransferStatusEl = document.getElementById('settings-transfer-status');
 const settingsTransferCloseBtn = document.getElementById('settings-transfer-close');
 const settingsCopyToastEl = document.getElementById('settings-copy-toast');
+const resetSettingsBtn = document.getElementById('reset-settings-btn');
 const desiredPieceModalEl = document.getElementById('desired-piece-modal');
 const desiredPieceModalTitleEl = document.getElementById('desired-piece-modal-title');
 const desiredPieceModalCopyEl = document.getElementById('desired-piece-modal-copy');
@@ -502,6 +503,26 @@ function getComputerDifficultyLabel() {
 
 function initAllowedShapes() {
   state.allowedShapeIds = new Set(getAllShapeDefs().map((shape) => shape.id));
+}
+
+function applyDefaultSettings() {
+  state.customShapes = [];
+  state.nextCustomShapeNumber = 1;
+  state.playerColorThemeIndexes = [0, 1];
+  state.playerCustomColors = [null, null];
+  state.playerGlowLevels = [0, 0];
+  state.prepDuration = DEFAULT_GAME_DURATION;
+  state.prepSpecialSpawnChance = DEFAULT_SPECIAL_SPAWN_CHANCE;
+  state.prepDesiredSkillCost = DEFAULT_DESIRED_SKILL_COST;
+  state.prepDesiredSkillCooldownMs = DEFAULT_DESIRED_SKILL_COOLDOWN_MS;
+  state.desiredSkillEnabled = true;
+  state.vsComputer = false;
+  state.computerDifficulty = 'normal';
+  initAllowedShapes();
+  initDesiredPieces();
+  if (!state.matchInProgress) {
+    state.timeLeft = state.prepDuration;
+  }
 }
 
 function buildBoard() {
@@ -982,6 +1003,29 @@ function loadSettingsFromStorage() {
   } catch {
     return false;
   }
+}
+
+function resetAllSettings() {
+  const confirmed = window.confirm('Reset all game settings to their defaults?');
+  if (!confirmed) return;
+  try {
+    window.localStorage.removeItem(SETTINGS_STORAGE_KEY);
+  } catch {
+    // Ignore storage removal failures and continue restoring defaults in memory.
+  }
+  applyDefaultSettings();
+  renderPreparationDuration();
+  renderSpecialSpawnChance();
+  renderDesiredSkillSettings();
+  renderModeUi();
+  renderDesiredPiecePreviews();
+  renderPiecePoolList();
+  renderPiecePoolButton();
+  renderSkillButtons();
+  renderRacks();
+  renderBoard();
+  refreshSettingsTransferExport();
+  persistSettingsToStorage();
 }
 
 function getSettingsPayload() {
@@ -2580,6 +2624,7 @@ blockStyleGlowInputEl?.addEventListener('input', (event) => {
 });
 piecePoolBtn.addEventListener('click', openPiecePoolModal);
 settingsTransferBtn.addEventListener('click', openSettingsTransferModal);
+resetSettingsBtn.addEventListener('click', resetAllSettings);
 specialSpawnBtn.addEventListener('click', openSpecialSpawnModal);
 desiredSkillSettingsBtn.addEventListener('click', openDesiredSkillSettingsModal);
 gameDescriptionBtn.addEventListener('click', openGameDescriptionModal);

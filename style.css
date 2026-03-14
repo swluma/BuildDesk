@@ -873,6 +873,12 @@ body {
   margin-top: 12px;
 }
 
+.secondary-btn.reset-settings-btn {
+  border-color: rgba(255, 96, 120, 0.92);
+  background: linear-gradient(180deg, #ff8a9a, #e13b55);
+  color: #fff3f6;
+}
+
 .mode-btn.active {
   border-color: rgba(141, 255, 117, 0.45);
   background:
