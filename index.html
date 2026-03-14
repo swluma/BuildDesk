@@ -153,13 +153,72 @@
     aria-labelledby="game-description-title"
   >
     <div class="overlay-card game-description-card">
+      <div class="game-description-kicker">Quick Guide</div>
       <h2 id="game-description-title">HOW TO PLAY</h2>
-      <p class="game-description-copy">Both players place pieces on the same 8 x 8 board and race for the best score before time runs out.</p>
+      <p class="game-description-copy">Both players share one 8 x 8 board. Fill lines, trigger specials, and finish with the higher score before the timer ends.</p>
+      <div class="game-description-summary">
+        <div class="game-description-summary-stat">
+          <span class="game-description-summary-value">8 x 8</span>
+          <span class="game-description-summary-label">Shared board</span>
+        </div>
+        <div class="game-description-summary-stat">
+          <span class="game-description-summary-value">2</span>
+          <span class="game-description-summary-label">Players racing</span>
+        </div>
+        <div class="game-description-summary-stat">
+          <span class="game-description-summary-value">1</span>
+          <span class="game-description-summary-label">Winner by score</span>
+        </div>
+      </div>
       <div class="game-description-list">
-        <div class="game-description-item">Place a piece so every block fits on empty cells.</div>
-        <div class="game-description-item">Completing a full row or column clears it and awards points.</div>
-        <div class="game-description-item">Special tiles can double a clear when a completed line passes through them.</div>
-        <div class="game-description-item">Each player can configure one desired piece and trigger it during the match.</div>
+        <div class="game-description-item place-tip">
+          <div class="place-piece-icon" aria-hidden="true">
+            <div class="place-piece-icon-trail"></div>
+            <div class="place-piece-icon-piece">
+              <div class="place-piece-icon-cell"></div>
+              <div class="place-piece-icon-cell"></div>
+              <div class="place-piece-icon-cell"></div>
+            </div>
+            <div class="place-piece-icon-finger"></div>
+          </div>
+          <div class="game-description-body">
+            <div class="game-description-item-title">Place pieces</div>
+            <div class="game-description-item-text">Drop a piece only where every block fits on empty cells.</div>
+          </div>
+        </div>
+        <div class="game-description-item clear-tip">
+          <div class="clear-line-icon" aria-hidden="true">
+            <div class="clear-line-icon-beam"></div>
+            <div class="clear-line-icon-block"></div>
+            <div class="clear-line-icon-block"></div>
+            <div class="clear-line-icon-block"></div>
+          </div>
+          <div class="game-description-body">
+            <div class="game-description-item-title">Clear lines</div>
+            <div class="game-description-item-text">Complete a full row or column to clear it and earn points immediately.</div>
+          </div>
+        </div>
+        <div class="game-description-item special-tip">
+          <div class="special-tile-icon" aria-hidden="true">
+            <div class="special-tile-icon-popup">score x2</div>
+            <div class="special-tile-icon-core"></div>
+          </div>
+          <div class="game-description-body">
+            <div class="game-description-item-title">Special tiles</div>
+            <div class="game-description-item-text">If a cleared line passes through a special tile, that clear gets a score boost.</div>
+          </div>
+        </div>
+        <div class="game-description-item desired-tip">
+          <div class="desired-piece-icon" aria-hidden="true">
+            <div class="desired-piece-icon-button"></div>
+            <div class="desired-piece-icon-finger"></div>
+            <div class="desired-piece-icon-tap"></div>
+          </div>
+          <div class="game-description-body">
+            <div class="game-description-item-title">Use desired pieces</div>
+            <div class="game-description-item-text">Each player can prepare one desired piece and trigger it during the match.</div>
+          </div>
+        </div>
       </div>
       <div class="game-description-actions">
         <button id="game-description-close" class="primary-btn" type="button">Close</button>
