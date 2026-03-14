@@ -1441,11 +1441,13 @@ body {
 }
 
 .piece-pool-card {
-  width: min(100%, 440px);
-  max-height: min(92vh, 720px);
-  overflow: hidden;
+  width: min(100%, 520px);
+  max-height: min(94vh, 820px);
+  overflow-y: auto;
   display: flex;
   flex-direction: column;
+  touch-action: pan-y;
+  -webkit-overflow-scrolling: touch;
 }
 
 .desired-piece-copy {
@@ -1973,9 +1975,9 @@ body {
   gap: 6px;
   margin-top: 12px;
   min-height: 0;
-  flex: 1 1 auto;
-  overflow-y: auto;
-  padding-right: 2px;
+  flex: 0 0 auto;
+  overflow: visible;
+  padding-right: 0;
 }
 
 .piece-pool-item {
