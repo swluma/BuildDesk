@@ -170,6 +170,7 @@ body {
 }
 
 .score-box {
+  position: relative;
   display: grid;
   justify-items: center;
   align-content: center;
@@ -186,6 +187,54 @@ body {
     inset 0 1px 0 rgba(255, 255, 255, 0.05),
     0 10px 22px rgba(0, 0, 0, 0.18);
   min-width: 0;
+}
+
+.jam-penalty-popup {
+  position: absolute;
+  left: 10px;
+  top: 50%;
+  z-index: 2;
+  min-width: 62px;
+  padding: 7px 8px 6px;
+  border-radius: 14px;
+  background:
+    radial-gradient(circle at top left, rgba(255, 170, 99, 0.24), transparent 58%),
+    rgba(46, 18, 11, 0.94);
+  border: 1px solid rgba(255, 133, 89, 0.44);
+  box-shadow: 0 10px 22px rgba(0, 0, 0, 0.24);
+  text-align: left;
+  pointer-events: none;
+  opacity: 0;
+  transform: translateY(-50%) translateX(-8px) scale(0.9);
+  animation: jam-penalty-life 3s ease forwards;
+}
+
+.jam-penalty-popup.player-top-penalty {
+  transform: translateY(-50%) translateX(-8px) scale(0.9) rotate(180deg);
+  animation-name: jam-penalty-life-top;
+}
+
+.jam-penalty-percent {
+  font-size: clamp(0.74rem, 2vw, 0.92rem);
+  font-weight: 900;
+  letter-spacing: 0.05em;
+  color: #ffbf8c;
+}
+
+.jam-penalty-points {
+  margin-top: 1px;
+  font-size: clamp(0.96rem, 2.6vw, 1.15rem);
+  font-weight: 900;
+  color: #fff5ec;
+}
+
+.jam-penalty-label {
+  margin-top: 2px;
+  font-size: clamp(0.58rem, 1.6vw, 0.7rem);
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(255, 221, 198, 0.84);
 }
 
 .score-label {
@@ -2435,6 +2484,38 @@ body {
   100% {
     opacity: 0;
     transform: translate(-50%, -32%) rotate(180deg);
+  }
+}
+
+@keyframes jam-penalty-life {
+  0% {
+    opacity: 0;
+    transform: translateY(-50%) translateX(-8px) scale(0.9);
+  }
+  12%,
+  78% {
+    opacity: 1;
+    transform: translateY(-50%) translateX(0) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-50%) translateX(8px) scale(0.96);
+  }
+}
+
+@keyframes jam-penalty-life-top {
+  0% {
+    opacity: 0;
+    transform: translateY(-50%) translateX(-8px) scale(0.9) rotate(180deg);
+  }
+  12%,
+  78% {
+    opacity: 1;
+    transform: translateY(-50%) translateX(0) scale(1) rotate(180deg);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-50%) translateX(8px) scale(0.96) rotate(180deg);
   }
 }
 

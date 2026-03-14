@@ -153,6 +153,7 @@ const boardShellEl = document.getElementById('board-shell');
 const scorePopupLayerEl = document.getElementById('score-popup-layer');
 const rackEls = [document.getElementById('rack-0'), document.getElementById('rack-1')];
 const scoreEls = [document.getElementById('score-0'), document.getElementById('score-1')];
+const scoreBoxEls = scoreEls.map((el) => el?.parentElement || null);
 const timerEl = document.getElementById('timer');
 const pauseBtnEl = document.getElementById('pause-btn');
 const overlayEl = document.getElementById('overlay');
@@ -308,6 +309,7 @@ const state = {
   skillUiHandle: null,
   boardMetrics: null,
   scorePopupHandle: null,
+  jamPenaltyPopupHandles: [null, null],
   computerPlayers: [false, false],
   computerMoveHandles: [null, null],
   idlePenaltyEligibleSince: [null, null],
@@ -538,6 +540,9 @@ function resetState() {
   if (state.pauseHandle) clearInterval(state.pauseHandle);
   if (state.skillUiHandle) clearInterval(state.skillUiHandle);
   if (state.scorePopupHandle) clearTimeout(state.scorePopupHandle);
+  state.jamPenaltyPopupHandles.forEach((handle) => {
+    if (handle) clearTimeout(handle);
+  });
   state.computerMoveHandles.forEach((handle) => {
     if (handle) clearTimeout(handle);
   });
@@ -545,11 +550,15 @@ function resetState() {
   state.pauseHandle = null;
   state.skillUiHandle = null;
   state.scorePopupHandle = null;
+  state.jamPenaltyPopupHandles = [null, null];
   state.computerMoveHandles = [null, null];
   state.idlePenaltyEligibleSince = [null, null];
   state.idlePenaltyNextTickAt = [null, null];
   state.skillCooldownEndsAt = [0, 0];
   scorePopupLayerEl.innerHTML = '';
+  scoreBoxEls.forEach((scoreBoxEl) => {
+    scoreBoxEl?.querySelector('.jam-penalty-popup')?.remove();
+  });
   updateTimer();
   updateScores();
   renderPauseButton();
@@ -2210,6 +2219,41 @@ function showScorePopup({ lineCount, points, specialDoubled }, anchorCell, playe
   }, 1000);
 }
 
+function showJamPenaltyPopup(player, percentLost, pointsLost) {
+  const scoreBoxEl = scoreBoxEls[player];
+  if (!scoreBoxEl) return;
+
+  scoreBoxEl.querySelector('.jam-penalty-popup')?.remove();
+  const existingHandle = state.jamPenaltyPopupHandles[player];
+  if (existingHandle) clearTimeout(existingHandle);
+
+  const popupEl = document.createElement('div');
+  popupEl.className = 'jam-penalty-popup';
+  if (player === 0 && !app.classList.contains('vs-computer-mode')) {
+    popupEl.classList.add('player-top-penalty');
+  }
+
+  const percentEl = document.createElement('div');
+  percentEl.className = 'jam-penalty-percent';
+  percentEl.textContent = `-${percentLost}%`;
+
+  const pointsEl = document.createElement('div');
+  pointsEl.className = 'jam-penalty-points';
+  pointsEl.textContent = `-${pointsLost}`;
+
+  const labelEl = document.createElement('div');
+  labelEl.className = 'jam-penalty-label';
+  labelEl.textContent = 'Jam penalty';
+
+  popupEl.append(percentEl, pointsEl, labelEl);
+  scoreBoxEl.appendChild(popupEl);
+
+  state.jamPenaltyPopupHandles[player] = setTimeout(() => {
+    popupEl.remove();
+    state.jamPenaltyPopupHandles[player] = null;
+  }, 3000);
+}
+
 function animateAndClear(rows, cols, consumedSpecialTiles = []) {
   const seen = new Set();
   rows.forEach((y) => {
@@ -2440,9 +2484,13 @@ function clearBoardAndRefreshPieces() {
 }
 
 function handleStuck(triggerPlayer) {
+  const previousScore = Math.floor(state.scores[triggerPlayer]);
   const keptRatio = Math.max(0, 1 - state.prepStuckPenalty);
   state.scores[triggerPlayer] = Math.floor(state.scores[triggerPlayer] * keptRatio);
+  const nextScore = Math.floor(state.scores[triggerPlayer]);
+  const pointsLost = Math.max(0, previousScore - nextScore);
   updateScores();
+  showJamPenaltyPopup(triggerPlayer, getStuckPenaltyPercent(), pointsLost);
   if (state.prepNonStopMode) {
     clearComputerMoveTimer();
     clearBoardAndRefreshPieces();
