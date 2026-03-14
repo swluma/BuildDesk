@@ -17,6 +17,8 @@ const DEFAULT_DESIRED_SKILL_COOLDOWN_MS = 15000;
 const MAX_CUSTOM_PIECES = 10;
 const MIN_CUSTOM_COMPUTER_INTERVAL_MS = 100;
 const MAX_CUSTOM_COMPUTER_INTERVAL_MS = 5000;
+const IDLE_PENALTY_GRACE_MS = 5000;
+const IDLE_PENALTY_TICK_MS = 1000;
 const SETTINGS_STORAGE_KEY = 'blockblast_duel_settings_v1';
 
 const COMPUTER_DIFFICULTIES = {
@@ -306,6 +308,8 @@ const state = {
   scorePopupHandle: null,
   computerPlayers: [false, false],
   computerMoveHandles: [null, null],
+  idlePenaltyEligibleSince: [null, null],
+  idlePenaltyNextTickAt: [null, null],
   computerDifficulties: ['normal', 'normal'],
   customComputerSettings: [0, 1].map(() => makeDefaultCustomComputerSettings()),
   activeDifficultyPlayer: 0,
@@ -540,6 +544,8 @@ function resetState() {
   state.skillUiHandle = null;
   state.scorePopupHandle = null;
   state.computerMoveHandles = [null, null];
+  state.idlePenaltyEligibleSince = [null, null];
+  state.idlePenaltyNextTickAt = [null, null];
   state.skillCooldownEndsAt = [0, 0];
   scorePopupLayerEl.innerHTML = '';
   updateTimer();
@@ -1799,6 +1805,56 @@ function isPieceDisabled(piece) {
   return Boolean(piece) && !anyPlacementForPiece(piece);
 }
 
+function playerHasPlayablePiece(player) {
+  return state.racks[player].some((piece) => piece && anyPlacementForPiece(piece));
+}
+
+function syncIdlePenaltyTracking({ resetPlayers = [] } = {}) {
+  const resetSet = new Set(resetPlayers);
+  const now = Date.now();
+  for (let player = 0; player < 2; player += 1) {
+    if (!state.gameActive || !playerHasPlayablePiece(player)) {
+      state.idlePenaltyEligibleSince[player] = null;
+      state.idlePenaltyNextTickAt[player] = null;
+      continue;
+    }
+    if (resetSet.has(player) || state.idlePenaltyEligibleSince[player] === null) {
+      state.idlePenaltyEligibleSince[player] = now;
+      state.idlePenaltyNextTickAt[player] = now + IDLE_PENALTY_GRACE_MS + IDLE_PENALTY_TICK_MS;
+    }
+  }
+}
+
+function applyIdlePenalties() {
+  if (!state.gameActive) return;
+  const now = Date.now();
+  let scoreChanged = false;
+
+  for (let player = 0; player < 2; player += 1) {
+    if (!playerHasPlayablePiece(player)) {
+      state.idlePenaltyEligibleSince[player] = null;
+      state.idlePenaltyNextTickAt[player] = null;
+      continue;
+    }
+    if (state.idlePenaltyEligibleSince[player] === null || state.idlePenaltyNextTickAt[player] === null) {
+      state.idlePenaltyEligibleSince[player] = now;
+      state.idlePenaltyNextTickAt[player] = now + IDLE_PENALTY_GRACE_MS + IDLE_PENALTY_TICK_MS;
+      continue;
+    }
+    if (now < state.idlePenaltyNextTickAt[player]) continue;
+
+    const elapsedTicks = 1 + Math.floor((now - state.idlePenaltyNextTickAt[player]) / IDLE_PENALTY_TICK_MS);
+    const nextScore = Math.max(0, state.scores[player] - elapsedTicks);
+    if (nextScore !== state.scores[player]) {
+      state.scores[player] = nextScore;
+      scoreChanged = true;
+    }
+    state.idlePenaltyNextTickAt[player] += elapsedTicks * IDLE_PENALTY_TICK_MS;
+  }
+
+  if (scoreChanged) updateScores();
+}
+
 function putPieceOnBoard(piece, x, y) {
   piece.cells.forEach(([dx, dy]) => {
     state.board[y + dy][x + dx] = {
@@ -2289,6 +2345,7 @@ function placeDraggedPiece(drag) {
   }
 
   refillSource(drag.source);
+  syncIdlePenaltyTracking({ resetPlayers: [scoringPlayer] });
   setTimeout(() => checkForStuckAfterMove(drag.source.player), 240);
 }
 
@@ -2333,6 +2390,7 @@ function resumePausedGame() {
   startVisibleCountdown('RESUME', RESUME_COUNTDOWN, () => {
     state.manualPauseActive = false;
     state.gameActive = true;
+    syncIdlePenaltyTracking({ resetPlayers: [0, 1] });
     renderSkillButtons();
     renderPauseButton();
     scheduleComputerMove();
@@ -2354,6 +2412,7 @@ function clearBoardAndRefreshPieces() {
   renderBoard();
   renderRacks();
   renderSpecialSlot();
+  syncIdlePenaltyTracking({ resetPlayers: [0, 1] });
 }
 
 function handleStuck(triggerPlayer) {
@@ -2377,6 +2436,7 @@ function handleStuck(triggerPlayer) {
     state.pauseHandle = null;
     hidePauseOverlay();
     state.gameActive = true;
+    syncIdlePenaltyTracking({ resetPlayers: [0, 1] });
     renderSkillButtons();
     renderPauseButton();
     scheduleComputerMove();
@@ -2409,6 +2469,7 @@ function startTimerLoop() {
   if (state.timerHandle) clearInterval(state.timerHandle);
   state.timerHandle = setInterval(() => {
     if (!state.gameActive) return;
+    applyIdlePenalties();
     state.timeLeft -= 1;
     updateTimer();
     if (state.timeLeft <= 0) endGame();
@@ -2891,6 +2952,7 @@ function activateDesiredSkill(player, { allowComputer = false } = {}) {
   state.racks[player][Math.floor(MAX_RACK / 2)] = makeDesiredRackPiece(player);
   updateScores();
   renderRacks();
+  syncIdlePenaltyTracking();
   return true;
 }
 
@@ -2930,6 +2992,7 @@ function startGameFlow() {
   refreshLayoutMetrics();
   startVisibleCountdown('START', 3, () => {
     state.gameActive = true;
+    syncIdlePenaltyTracking({ resetPlayers: [0, 1] });
     startSkillUiLoop();
     renderSkillButtons();
     renderPauseButton();
