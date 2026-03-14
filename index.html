@@ -425,11 +425,23 @@
       <h2 id="difficulty-modal-title">COMPUTER DIFFICULTY</h2>
       <p class="difficulty-copy">Choose how fast and how intelligently the computer plays.</p>
       <div id="difficulty-list" class="difficulty-list" aria-label="computer difficulty options"></div>
-      <section class="difficulty-custom-panel" aria-labelledby="difficulty-custom-title">
-        <div class="difficulty-custom-header">
-          <h3 id="difficulty-custom-title" class="difficulty-custom-title">CUSTOM COMPUTER</h3>
-          <div id="difficulty-custom-status" class="difficulty-custom-status">Select Custom to edit</div>
-        </div>
+      <div class="difficulty-actions">
+        <button id="difficulty-close" class="primary-btn" type="button">Done</button>
+      </div>
+    </div>
+  </div>
+
+  <div
+    id="difficulty-custom-modal"
+    class="overlay hidden difficulty-custom-modal"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="difficulty-custom-modal-title"
+  >
+    <div class="overlay-card difficulty-custom-card">
+      <h2 id="difficulty-custom-modal-title">CUSTOM COMPUTER</h2>
+      <p class="difficulty-copy">Tune how this computer moves and what strategy it uses.</p>
+      <section class="difficulty-custom-panel" aria-label="custom computer settings">
         <label class="difficulty-custom-field" for="difficulty-custom-interval">
           <span class="difficulty-custom-label">Move Interval</span>
           <input
@@ -458,7 +470,7 @@
         <p id="difficulty-custom-strategy-copy" class="difficulty-custom-copy"></p>
       </section>
       <div class="difficulty-actions">
-        <button id="difficulty-close" class="primary-btn" type="button">Done</button>
+        <button id="difficulty-custom-close" class="primary-btn" type="button">Done</button>
       </div>
     </div>
   </div>

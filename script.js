@@ -259,7 +259,9 @@ const difficultyModalEl = document.getElementById('difficulty-modal');
 const difficultyListEl = document.getElementById('difficulty-list');
 const difficultyCloseBtn = document.getElementById('difficulty-close');
 const difficultyModalTitleEl = document.getElementById('difficulty-modal-title');
-const difficultyCustomStatusEl = document.getElementById('difficulty-custom-status');
+const difficultyCustomModalEl = document.getElementById('difficulty-custom-modal');
+const difficultyCustomModalTitleEl = document.getElementById('difficulty-custom-modal-title');
+const difficultyCustomCloseBtn = document.getElementById('difficulty-custom-close');
 const difficultyCustomIntervalEl = document.getElementById('difficulty-custom-interval');
 const difficultyCustomIntervalValueEl = document.getElementById('difficulty-custom-interval-value');
 const difficultyCustomDesiredToggleBtn = document.getElementById('difficulty-custom-desired-toggle');
@@ -739,20 +741,16 @@ function buildDifficultyList() {
     ['custom', getCustomComputerDifficultyConfig(player)],
   ];
   difficultyEntries.forEach(([key, config]) => {
-    const optionEl = document.createElement('button');
-    optionEl.type = 'button';
+    const optionEl = document.createElement('div');
     optionEl.className = 'difficulty-option';
     optionEl.classList.toggle('active', key === state.computerDifficulties[player]);
-    optionEl.setAttribute('aria-pressed', String(key === state.computerDifficulties[player]));
-    optionEl.addEventListener('click', () => {
-      state.computerDifficulties[player] = key;
-      renderModeUi();
+    const selectBtnEl = document.createElement('button');
+    selectBtnEl.type = 'button';
+    selectBtnEl.className = 'difficulty-option-select';
+    selectBtnEl.setAttribute('aria-pressed', String(key === state.computerDifficulties[player]));
+    selectBtnEl.addEventListener('click', () => {
+      applyComputerDifficulty(player, key);
       buildDifficultyList();
-      if (isComputerPlayer(player) && state.gameActive) {
-        clearComputerMoveTimer(player);
-        scheduleComputerMove(player);
-      }
-      persistSettingsToStorage();
     });
 
     const titleEl = document.createElement('div');
@@ -767,40 +765,60 @@ function buildDifficultyList() {
     copyEl.className = 'difficulty-option-copy';
     copyEl.textContent = config.description;
 
-    optionEl.append(titleEl, metaEl, copyEl);
+    selectBtnEl.append(titleEl, metaEl, copyEl);
+    optionEl.appendChild(selectBtnEl);
+    if (key === 'custom') {
+      const actionsEl = document.createElement('div');
+      actionsEl.className = 'difficulty-option-actions';
+
+      const editBtnEl = document.createElement('button');
+      editBtnEl.type = 'button';
+      editBtnEl.className = 'secondary-btn difficulty-option-edit-btn';
+      editBtnEl.textContent = 'Edit';
+      editBtnEl.addEventListener('click', () => {
+        applyComputerDifficulty(player, 'custom');
+        buildDifficultyList();
+        openCustomComputerModal(player);
+      });
+
+      actionsEl.appendChild(editBtnEl);
+      optionEl.appendChild(actionsEl);
+    }
     difficultyListEl.appendChild(optionEl);
   });
-  renderDifficultyCustomPanel();
 }
 
 function renderDifficultyCustomPanel() {
   const player = state.activeDifficultyPlayer;
   const customSettings = normalizeCustomComputerSettingsEntry(state.customComputerSettings[player] || {});
   state.customComputerSettings[player] = customSettings;
-  const enabled = state.computerDifficulties[player] === 'custom';
   const strategyConfig = COMPUTER_DIFFICULTIES[customSettings.strategyKey] || COMPUTER_DIFFICULTIES.normal;
-  if (difficultyCustomStatusEl) {
-    difficultyCustomStatusEl.textContent = enabled ? 'Custom settings active' : 'Select Custom to edit';
-  }
   if (difficultyCustomIntervalEl) {
     difficultyCustomIntervalEl.value = (customSettings.intervalMs / 1000).toFixed(1);
-    difficultyCustomIntervalEl.disabled = !enabled;
   }
   if (difficultyCustomIntervalValueEl) {
     difficultyCustomIntervalValueEl.textContent = `${(customSettings.intervalMs / 1000).toFixed(1)}s`;
   }
   if (difficultyCustomDesiredToggleBtn) {
-    difficultyCustomDesiredToggleBtn.disabled = !enabled;
     difficultyCustomDesiredToggleBtn.textContent = `Desired Pieces: ${customSettings.allowDesiredSkill ? 'On' : 'Off'}`;
     difficultyCustomDesiredToggleBtn.classList.toggle('active', customSettings.allowDesiredSkill);
   }
   if (difficultyCustomStrategyEl) {
     difficultyCustomStrategyEl.value = customSettings.strategyKey;
-    difficultyCustomStrategyEl.disabled = !enabled;
   }
   if (difficultyCustomStrategyCopyEl) {
     difficultyCustomStrategyCopyEl.textContent = strategyConfig.description;
   }
+}
+
+function applyComputerDifficulty(player, key) {
+  state.computerDifficulties[player] = key;
+  renderModeUi();
+  if (isComputerPlayer(player) && state.gameActive) {
+    clearComputerMoveTimer(player);
+    scheduleComputerMove(player);
+  }
+  persistSettingsToStorage();
 }
 
 function fillAllRacks() {
@@ -2425,6 +2443,7 @@ function endGame() {
 function toggleComputerMode(player) {
   state.computerPlayers[player] = !state.computerPlayers[player];
   closeDifficultyModal();
+  closeCustomComputerModal();
   if (!state.computerPlayers[player]) clearComputerMoveTimer(player);
   else if (state.gameActive) scheduleComputerMove(player);
   renderModeUi();
@@ -2445,6 +2464,7 @@ function openDifficultyModal(player) {
   closeSpecialSpawnModal();
   closeStuckPenaltyModal();
   closeDesiredSkillSettingsModal();
+  closeCustomComputerModal();
   if (difficultyModalTitleEl) difficultyModalTitleEl.textContent = `${getPlayerDisplayName(player)} DIFFICULTY`;
   difficultyModalEl.classList.remove('hidden');
   buildDifficultyList();
@@ -2454,13 +2474,28 @@ function closeDifficultyModal() {
   difficultyModalEl.classList.add('hidden');
 }
 
+function openCustomComputerModal(player = state.activeDifficultyPlayer) {
+  state.activeDifficultyPlayer = player;
+  applyComputerDifficulty(player, 'custom');
+  if (difficultyCustomModalTitleEl) {
+    difficultyCustomModalTitleEl.textContent = `${getPlayerDisplayName(player)} CUSTOM COMPUTER`;
+  }
+  renderDifficultyCustomPanel();
+  difficultyCustomModalEl.classList.remove('hidden');
+}
+
+function closeCustomComputerModal() {
+  difficultyCustomModalEl.classList.add('hidden');
+}
+
 function updateCustomComputerSettings(player, updates) {
   state.customComputerSettings[player] = normalizeCustomComputerSettingsEntry({
     ...(state.customComputerSettings[player] || makeDefaultCustomComputerSettings()),
     ...updates,
   });
   renderModeUi();
-  if (!difficultyModalEl.classList.contains('hidden')) renderDifficultyCustomPanel();
+  if (!difficultyCustomModalEl.classList.contains('hidden')) renderDifficultyCustomPanel();
+  if (!difficultyModalEl.classList.contains('hidden')) buildDifficultyList();
   if (isComputerPlayer(player) && state.computerDifficulties[player] === 'custom' && state.gameActive) {
     clearComputerMoveTimer(player);
     scheduleComputerMove(player);
@@ -2475,6 +2510,7 @@ function openSpecialSpawnModal() {
   closeDesiredPieceModal();
   closePiecePoolModal();
   closeDifficultyModal();
+  closeCustomComputerModal();
   closeStuckPenaltyModal();
   closeDesiredSkillSettingsModal();
   renderSpecialSpawnChance();
@@ -2492,6 +2528,7 @@ function openStuckPenaltyModal() {
   closeDesiredPieceModal();
   closePiecePoolModal();
   closeDifficultyModal();
+  closeCustomComputerModal();
   closeSpecialSpawnModal();
   closeStuckPenaltyModal();
   closeDesiredSkillSettingsModal();
@@ -2510,6 +2547,7 @@ function openDesiredSkillSettingsModal() {
   closeDesiredPieceModal();
   closePiecePoolModal();
   closeDifficultyModal();
+  closeCustomComputerModal();
   closeSpecialSpawnModal();
   closeStuckPenaltyModal();
   renderDesiredSkillSettings();
@@ -2525,6 +2563,7 @@ function openSettingsTransferModal() {
   closeDesiredPieceModal();
   closePiecePoolModal();
   closeDifficultyModal();
+  closeCustomComputerModal();
   closeSpecialSpawnModal();
   closeStuckPenaltyModal();
   closeDesiredSkillSettingsModal();
@@ -2589,6 +2628,7 @@ function openDesiredPieceModal(player) {
   closeBlockStyleModal();
   closeGameDescriptionModal();
   closeDifficultyModal();
+  closeCustomComputerModal();
   closeSpecialSpawnModal();
   closeStuckPenaltyModal();
   closeDesiredSkillSettingsModal();
@@ -2608,6 +2648,7 @@ function openCustomPieceModal() {
   closeBlockStyleModal();
   closeGameDescriptionModal();
   closeDifficultyModal();
+  closeCustomComputerModal();
   closeSpecialSpawnModal();
   closeStuckPenaltyModal();
   closeDesiredSkillSettingsModal();
@@ -2632,6 +2673,7 @@ function openPiecePoolModal() {
   closeBlockStyleModal();
   closeGameDescriptionModal();
   closeDifficultyModal();
+  closeCustomComputerModal();
   closeSpecialSpawnModal();
   closeStuckPenaltyModal();
   closeDesiredSkillSettingsModal();
@@ -2648,6 +2690,7 @@ function openGameDescriptionModal() {
   closeSettingsTransferModal();
   closeBlockStyleModal();
   closeDifficultyModal();
+  closeCustomComputerModal();
   closeSpecialSpawnModal();
   closeStuckPenaltyModal();
   closeDesiredSkillSettingsModal();
@@ -2666,6 +2709,7 @@ function openBlockStyleModal(player) {
   closeDesiredPieceModal();
   closePiecePoolModal();
   closeDifficultyModal();
+  closeCustomComputerModal();
   closeSpecialSpawnModal();
   closeStuckPenaltyModal();
   closeDesiredSkillSettingsModal();
@@ -2867,6 +2911,7 @@ function startGameFlow() {
   closeDesiredPieceModal();
   closePiecePoolModal();
   closeDifficultyModal();
+  closeCustomComputerModal();
   closeSpecialSpawnModal();
   closeDesiredSkillSettingsModal();
   closeBlockStyleModal();
@@ -2899,6 +2944,7 @@ function returnToPreparation() {
   closeDesiredPieceModal();
   closePiecePoolModal();
   closeDifficultyModal();
+  closeCustomComputerModal();
   closeSpecialSpawnModal();
   closeDesiredSkillSettingsModal();
   closeBlockStyleModal();
@@ -3042,6 +3088,7 @@ desiredPieceCancelBtn.addEventListener('click', () => closeDesiredPieceModal({
 desiredPieceSaveBtn.addEventListener('click', saveDesiredDraft);
 piecePoolCloseBtn.addEventListener('click', closePiecePoolModal);
 difficultyCloseBtn.addEventListener('click', closeDifficultyModal);
+difficultyCustomCloseBtn?.addEventListener('click', closeCustomComputerModal);
 difficultyCustomIntervalEl?.addEventListener('input', (event) => {
   updateCustomComputerSettings(state.activeDifficultyPlayer, {
     intervalMs: Math.round(Number(event.target.value) * 1000),
@@ -3110,6 +3157,9 @@ settingsTransferModalEl.addEventListener('click', (event) => {
 });
 difficultyModalEl.addEventListener('click', (event) => {
   if (event.target === difficultyModalEl) closeDifficultyModal();
+});
+difficultyCustomModalEl?.addEventListener('click', (event) => {
+  if (event.target === difficultyCustomModalEl) closeCustomComputerModal();
 });
 stuckPenaltyModalEl.addEventListener('click', (event) => {
   if (event.target === stuckPenaltyModalEl) {
@@ -3180,6 +3230,8 @@ document.addEventListener('keydown', (event) => {
     closeBlockStyleModal();
   } else if (event.key === 'Escape' && !settingsTransferModalEl.classList.contains('hidden')) {
     closeSettingsTransferModal();
+  } else if (event.key === 'Escape' && !difficultyCustomModalEl.classList.contains('hidden')) {
+    closeCustomComputerModal();
   } else if (event.key === 'Escape' && !difficultyModalEl.classList.contains('hidden')) {
     closeDifficultyModal();
   } else if (event.key === 'Escape' && !stuckPenaltyModalEl.classList.contains('hidden')) {
