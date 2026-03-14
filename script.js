@@ -2359,6 +2359,8 @@ function handleStuck(triggerPlayer) {
     state.pauseHandle = null;
     hidePauseOverlay();
     state.gameActive = true;
+    renderSkillButtons();
+    renderPauseButton();
     scheduleComputerMove();
   }, 1000);
 }
