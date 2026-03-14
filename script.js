@@ -197,6 +197,8 @@ const blockStyleModalCopyEl = document.getElementById('block-style-modal-copy');
 const blockStylePreviewEl = document.getElementById('block-style-preview');
 const blockStyleGlowValueEl = document.getElementById('block-style-glow-value');
 const blockStyleColorOptionsEl = document.getElementById('block-style-color-options');
+const blockStyleColorPickerEl = document.getElementById('block-style-color-picker');
+const blockStyleColorCodeEl = document.getElementById('block-style-color-code');
 const blockStyleGlowInputEl = document.getElementById('block-style-glow-input');
 const blockStyleCloseBtn = document.getElementById('block-style-close');
 const desiredPieceModalEl = document.getElementById('desired-piece-modal');
@@ -237,6 +239,7 @@ const state = {
   pieceEditorDraft: null,
   desiredGridCells: [],
   playerColorThemeIndexes: [0, 1],
+  playerCustomColors: [null, null],
   playerGlowLevels: [0, 0],
   blockStyleModalPlayer: null,
   gameActive: false,
@@ -293,12 +296,65 @@ function getPlayerColorTheme(player) {
   return PLAYER_COLOR_THEMES[selectedIndex] || PLAYER_COLOR_THEMES[player] || PLAYER_COLOR_THEMES[0];
 }
 
+function clampColorChannel(value) {
+  return Math.max(0, Math.min(255, Math.round(value)));
+}
+
+function hexToRgb(hex) {
+  const normalized = String(hex || '').trim().replace('#', '');
+  if (!/^[0-9a-fA-F]{6}$/.test(normalized)) return null;
+  return {
+    r: Number.parseInt(normalized.slice(0, 2), 16),
+    g: Number.parseInt(normalized.slice(2, 4), 16),
+    b: Number.parseInt(normalized.slice(4, 6), 16),
+  };
+}
+
+function rgbToHex({ r, g, b }) {
+  return `#${[r, g, b]
+    .map((value) => clampColorChannel(value).toString(16).padStart(2, '0'))
+    .join('')}`;
+}
+
+function shiftRgb(rgb, amount) {
+  return {
+    r: clampColorChannel(rgb.r + amount),
+    g: clampColorChannel(rgb.g + amount),
+    b: clampColorChannel(rgb.b + amount),
+  };
+}
+
+function rgbToCss(rgb) {
+  return `${clampColorChannel(rgb.r)}, ${clampColorChannel(rgb.g)}, ${clampColorChannel(rgb.b)}`;
+}
+
+function buildColorGradient(hex, { lift = 34, drop = -24 } = {}) {
+  const rgb = hexToRgb(hex);
+  if (!rgb) return null;
+  const light = rgbToHex(shiftRgb(rgb, lift));
+  const dark = rgbToHex(shiftRgb(rgb, drop));
+  return `linear-gradient(180deg, ${light} 0%, ${dark} 100%)`;
+}
+
+function getPlayerBaseHexColor(player) {
+  const customColor = state.playerCustomColors[player];
+  if (customColor) return customColor;
+  const theme = getPlayerColorTheme(player);
+  const themeMatch = theme.previewColor?.match(/#([0-9a-fA-F]{6})/);
+  return themeMatch ? `#${themeMatch[1]}` : '#62d8ff';
+}
+
 function getPlayerGlowLevel(player) {
   const rawLevel = state.playerGlowLevels[player];
   return Number.isFinite(rawLevel) ? Math.max(0, Math.min(1, rawLevel)) : 0;
 }
 
 function getPlayerGlowColor(player) {
+  const customColor = state.playerCustomColors[player];
+  if (customColor) {
+    const rgb = hexToRgb(customColor);
+    if (rgb) return rgbToCss(rgb);
+  }
   return getPlayerColorTheme(player).glowColor || '255, 255, 255';
 }
 
@@ -329,10 +385,14 @@ function makePieceFromCells(cells, {
 }
 
 function getPlayerPreviewColor(player) {
+  const customColor = state.playerCustomColors[player];
+  if (customColor) return buildColorGradient(customColor) || customColor;
   return getPlayerColorTheme(player).previewColor || PLAYER_PREVIEW_COLORS[player] || randomItem(COLORS);
 }
 
 function getPlayerDesiredColor(player) {
+  const customColor = state.playerCustomColors[player];
+  if (customColor) return buildColorGradient(customColor, { lift: 46, drop: -8 }) || customColor;
   return getPlayerColorTheme(player).desiredColor || DESIRED_PREVIEW_COLORS[player] || getPlayerPreviewColor(player);
 }
 
@@ -670,9 +730,11 @@ function renderBlockStyleModal() {
   if (blockStyleModalCopyEl) blockStyleModalCopyEl.textContent = `Choose the color theme and glow strength for ${playerName.toLowerCase()}'s blocks.`;
   if (blockStyleGlowInputEl) blockStyleGlowInputEl.value = String(glowPercent);
   if (blockStyleGlowValueEl) blockStyleGlowValueEl.textContent = `Glow ${glowPercent}%`;
+  if (blockStyleColorPickerEl) blockStyleColorPickerEl.value = getPlayerBaseHexColor(player);
+  if (blockStyleColorCodeEl) blockStyleColorCodeEl.textContent = getPlayerBaseHexColor(player).toUpperCase();
   if (blockStyleColorOptionsEl) {
     Array.from(blockStyleColorOptionsEl.children).forEach((optionEl, index) => {
-      const selected = index === state.playerColorThemeIndexes[player];
+      const selected = !state.playerCustomColors[player] && index === state.playerColorThemeIndexes[player];
       optionEl.classList.toggle('active', selected);
       optionEl.setAttribute('aria-pressed', String(selected));
       optionEl.setAttribute('aria-label', `${playerName} color ${PLAYER_COLOR_THEMES[index].label}`);
@@ -2024,6 +2086,30 @@ function setPlayerColorTheme(player, themeIndex) {
   if (!Number.isInteger(themeIndex)) return;
   if (!PLAYER_COLOR_THEMES[themeIndex]) return;
   state.playerColorThemeIndexes[player] = themeIndex;
+  state.playerCustomColors[player] = null;
+  state.desiredPieces[player] = makeDesiredPiece(player, state.desiredPieces[player].cells);
+  state.racks[player] = state.racks[player].map((piece) => {
+    if (!piece) return piece;
+    if (piece.shapeId === `desired-${player}`) return makeDesiredRackPiece(player);
+    return {
+      ...piece,
+      player,
+      previewColor: getPlayerPreviewColor(player),
+      glowColor: getPlayerGlowColor(player),
+      glowStrength: getPlayerGlowLevel(player),
+    };
+  });
+  renderModeUi();
+  renderDesiredPiecePreviews();
+  renderRacks();
+  renderBoard();
+}
+
+function setPlayerCustomColor(player, colorHex) {
+  const rgb = hexToRgb(colorHex);
+  if (!rgb) return;
+  const normalized = rgbToHex(rgb);
+  state.playerCustomColors[player] = normalized;
   state.desiredPieces[player] = makeDesiredPiece(player, state.desiredPieces[player].cells);
   state.racks[player] = state.racks[player].map((piece) => {
     if (!piece) return piece;
@@ -2198,6 +2284,10 @@ blockStyleColorOptionsEl?.addEventListener('click', (event) => {
   const optionEl = event.target.closest('.player-color-option');
   if (!optionEl || state.blockStyleModalPlayer === null) return;
   setPlayerColorTheme(state.blockStyleModalPlayer, Number(optionEl.dataset.themeIndex));
+});
+blockStyleColorPickerEl?.addEventListener('input', (event) => {
+  if (state.blockStyleModalPlayer === null) return;
+  setPlayerCustomColor(state.blockStyleModalPlayer, event.target.value);
 });
 blockStyleGlowInputEl?.addEventListener('input', (event) => {
   if (state.blockStyleModalPlayer === null) return;

@@ -1520,6 +1520,61 @@ body {
   margin-top: 16px;
 }
 
+.block-style-picker-group {
+  display: grid;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.block-style-picker-label {
+  font-size: 0.78rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  color: #dcebf4;
+}
+
+.block-style-picker-wrap {
+  display: grid;
+  grid-template-columns: 52px minmax(0, 1fr);
+  gap: 12px;
+  align-items: center;
+  padding: 10px 12px;
+  border-radius: 16px;
+  background: rgba(22, 36, 52, 0.9);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+}
+
+.block-style-color-picker {
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border: none;
+  border-radius: 12px;
+  background: transparent;
+  cursor: pointer;
+}
+
+.block-style-color-picker::-webkit-color-swatch-wrapper {
+  padding: 0;
+}
+
+.block-style-color-picker::-webkit-color-swatch {
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 12px;
+}
+
+.block-style-color-picker::-moz-color-swatch {
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 12px;
+}
+
+.block-style-color-code {
+  font-size: 0.9rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  color: #d3e4ef;
+}
+
 .block-style-glow-group {
   display: grid;
   gap: 10px;
