@@ -213,6 +213,7 @@ const settingsUploadBtn = document.getElementById('settings-upload-btn');
 const settingsUploadInputEl = document.getElementById('settings-upload-input');
 const settingsTransferStatusEl = document.getElementById('settings-transfer-status');
 const settingsTransferCloseBtn = document.getElementById('settings-transfer-close');
+const settingsCopyToastEl = document.getElementById('settings-copy-toast');
 const desiredPieceModalEl = document.getElementById('desired-piece-modal');
 const desiredPieceModalTitleEl = document.getElementById('desired-piece-modal-title');
 const desiredPieceModalCopyEl = document.getElementById('desired-piece-modal-copy');
@@ -272,6 +273,8 @@ const state = {
   computerMoveHandle: null,
   computerDifficulty: 'normal',
 };
+
+let settingsCopyToastHandle = null;
 
 function randomItem(arr) {
   return arr[Math.floor(Math.random() * arr.length)];
@@ -949,6 +952,21 @@ function setSettingsTransferStatus(message, tone = 'neutral') {
   settingsTransferStatusEl.dataset.tone = tone;
 }
 
+function showSettingsCopyToast() {
+  if (!settingsCopyToastEl) return;
+  if (settingsCopyToastHandle) {
+    clearTimeout(settingsCopyToastHandle);
+    settingsCopyToastHandle = null;
+  }
+  settingsCopyToastEl.classList.remove('show');
+  void settingsCopyToastEl.offsetWidth;
+  settingsCopyToastEl.classList.add('show');
+  settingsCopyToastHandle = setTimeout(() => {
+    settingsCopyToastEl.classList.remove('show');
+    settingsCopyToastHandle = null;
+  }, 1400);
+}
+
 function persistSettingsToStorage() {
   try {
     window.localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(getSettingsPayload()));
@@ -1114,6 +1132,7 @@ async function copySettingsJson() {
       document.execCommand('copy');
     }
     setSettingsTransferStatus('Settings JSON copied.', 'success');
+    showSettingsCopyToast();
   } catch {
     setSettingsTransferStatus('Copy failed. Use the Save JSON button instead.', 'error');
   }
