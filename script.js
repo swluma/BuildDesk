@@ -237,7 +237,7 @@ const state = {
   pieceEditorDraft: null,
   desiredGridCells: [],
   playerColorThemeIndexes: [0, 1],
-  playerGlowLevels: [0.55, 0.55],
+  playerGlowLevels: [0, 0],
   blockStyleModalPlayer: null,
   gameActive: false,
   matchInProgress: false,
@@ -295,7 +295,7 @@ function getPlayerColorTheme(player) {
 
 function getPlayerGlowLevel(player) {
   const rawLevel = state.playerGlowLevels[player];
-  return Number.isFinite(rawLevel) ? Math.max(0, Math.min(1, rawLevel)) : 0.55;
+  return Number.isFinite(rawLevel) ? Math.max(0, Math.min(1, rawLevel)) : 0;
 }
 
 function getPlayerGlowColor(player) {
@@ -2325,6 +2325,10 @@ function hasScrollableParent(target) {
   return false;
 }
 
+function isTouchRangeControl(target) {
+  return target instanceof Element && Boolean(target.closest('input[type="range"]'));
+}
+
 document.addEventListener('keydown', (event) => {
   if (event.key === 'Escape' && !desiredPieceModalEl.classList.contains('hidden')) {
     closeDesiredPieceModal({ reopenPiecePool: Boolean(state.pieceEditorDraft?.returnToPiecePool) });
@@ -2349,6 +2353,7 @@ document.addEventListener('keydown', (event) => {
 });
 
 document.addEventListener('touchmove', (event) => {
+  if (isTouchRangeControl(event.target)) return;
   if (hasScrollableParent(event.target)) return;
   event.preventDefault();
 }, { passive: false });
