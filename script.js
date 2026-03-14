@@ -568,19 +568,21 @@ function getSkillLabel(player) {
 
 function getComputerDifficultyConfig(player) {
   const key = state.computerDifficulties[player];
-  if (key === 'custom') {
-    const customSettings = normalizeCustomComputerSettingsEntry(state.customComputerSettings[player] || {});
-    const strategyConfig = COMPUTER_DIFFICULTIES[customSettings.strategyKey] || COMPUTER_DIFFICULTIES.normal;
-    return {
-      ...strategyConfig,
-      key,
-      label: 'Custom',
-      intervalMs: customSettings.intervalMs,
-      allowDesiredSkill: customSettings.allowDesiredSkill,
-      description: `Custom timing with ${strategyConfig.label.toLowerCase()} strategy.`,
-    };
-  }
+  if (key === 'custom') return getCustomComputerDifficultyConfig(player);
   return COMPUTER_DIFFICULTIES[key] || COMPUTER_DIFFICULTIES.normal;
+}
+
+function getCustomComputerDifficultyConfig(player) {
+  const customSettings = normalizeCustomComputerSettingsEntry(state.customComputerSettings[player] || {});
+  const strategyConfig = COMPUTER_DIFFICULTIES[customSettings.strategyKey] || COMPUTER_DIFFICULTIES.normal;
+  return {
+    ...strategyConfig,
+    key: 'custom',
+    label: 'Custom',
+    intervalMs: customSettings.intervalMs,
+    allowDesiredSkill: customSettings.allowDesiredSkill,
+    description: `Custom timing with ${strategyConfig.label.toLowerCase()} strategy.`,
+  };
 }
 
 function getComputerDifficultyLabel(player) {
@@ -734,7 +736,7 @@ function buildDifficultyList() {
   difficultyListEl.innerHTML = '';
   const difficultyEntries = [
     ...Object.entries(COMPUTER_DIFFICULTIES),
-    ['custom', getComputerDifficultyConfig(player)],
+    ['custom', getCustomComputerDifficultyConfig(player)],
   ];
   difficultyEntries.forEach(([key, config]) => {
     const optionEl = document.createElement('button');
