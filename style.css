@@ -924,6 +924,12 @@ body {
   overflow-y: auto;
 }
 
+.desired-skill-settings-card {
+  width: min(100%, 400px);
+  max-height: min(92vh, 680px);
+  overflow-y: auto;
+}
+
 .game-description-card {
   width: min(100%, 430px);
   max-height: min(92vh, 680px);
@@ -1459,12 +1465,42 @@ body {
   line-height: 1.4;
 }
 
+.desired-skill-settings-copy {
+  margin: 8px 0 0;
+  color: #d3e4ef;
+  line-height: 1.4;
+}
+
+.desired-skill-toggle-btn {
+  margin-top: 16px;
+}
+
+.desired-skill-toggle-btn.active {
+  border-color: rgba(141, 255, 117, 0.45);
+  background:
+    radial-gradient(circle at top left, rgba(141, 255, 117, 0.14), transparent 58%),
+    rgba(22, 36, 52, 0.9);
+  color: #dfffd3;
+}
+
 .special-spawn-input-wrap {
   display: inline-grid;
   grid-template-columns: auto auto;
   gap: 8px;
   align-items: center;
   margin-top: 16px;
+  padding: 12px 14px;
+  border-radius: 16px;
+  background: rgba(22, 36, 52, 0.9);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+}
+
+.desired-skill-input-wrap {
+  display: inline-grid;
+  grid-template-columns: auto auto;
+  gap: 8px;
+  align-items: center;
+  margin-top: 12px;
   padding: 12px 14px;
   border-radius: 16px;
   background: rgba(22, 36, 52, 0.9);
@@ -1487,10 +1523,34 @@ body {
   margin: 0;
 }
 
+.desired-skill-cost-input {
+  width: 84px;
+  border: none;
+  background: transparent;
+  color: #f3f8fb;
+  font-size: 1.1rem;
+  font-weight: 900;
+  text-align: right;
+  outline: none;
+}
+
+.desired-skill-cost-input::-webkit-outer-spin-button,
+.desired-skill-cost-input::-webkit-inner-spin-button {
+  margin: 0;
+}
+
 .special-spawn-unit {
   font-size: 0.88rem;
   font-weight: 800;
   letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #b7ccd9;
+}
+
+.desired-skill-unit {
+  font-size: 0.82rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
   color: #b7ccd9;
 }
@@ -1502,7 +1562,18 @@ body {
   font-size: 0.84rem;
 }
 
+.desired-skill-hint {
+  margin-top: 12px;
+  color: #b7ccd9;
+  line-height: 1.4;
+  font-size: 0.84rem;
+}
+
 .special-spawn-actions {
+  margin-top: 16px;
+}
+
+.desired-skill-actions {
   margin-top: 16px;
 }
 

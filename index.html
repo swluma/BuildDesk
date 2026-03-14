@@ -143,6 +143,7 @@
         </label>
       </div>
       <button id="special-spawn-btn" class="secondary-btn prep-setting-btn" type="button">Special Tile Chance: 5%</button>
+      <button id="desired-skill-settings-btn" class="secondary-btn prep-setting-btn" type="button">Desired Skill: On · Cost 15</button>
       <button id="piece-pool-btn" class="secondary-btn piece-pool-btn" type="button">Piece Types</button>
       <button id="vs-computer-btn" class="secondary-btn mode-btn" type="button">VS Computer: Off</button>
       <button id="start-btn" class="primary-btn">Start Game</button>
@@ -339,6 +340,37 @@
       <div class="special-spawn-hint">0 disables spawning. 100 guarantees a spawn check succeeds.</div>
       <div class="special-spawn-actions">
         <button id="special-spawn-close" class="primary-btn" type="button">Done</button>
+      </div>
+    </div>
+  </div>
+
+  <div
+    id="desired-skill-settings-modal"
+    class="overlay hidden desired-skill-settings-modal"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="desired-skill-settings-modal-title"
+  >
+    <div class="overlay-card desired-skill-settings-card">
+      <h2 id="desired-skill-settings-modal-title">DESIRED SKILL</h2>
+      <p class="desired-skill-settings-copy">Set whether the desired skill can be used in the match and how many points it costs.</p>
+      <button id="desired-skill-toggle-btn" class="secondary-btn desired-skill-toggle-btn" type="button">Skill: On</button>
+      <label class="desired-skill-input-wrap" for="desired-skill-cost-input">
+        <input
+          id="desired-skill-cost-input"
+          class="desired-skill-cost-input"
+          type="number"
+          min="0"
+          max="100"
+          step="1"
+          value="15"
+          inputmode="numeric"
+        />
+        <span class="desired-skill-unit">points</span>
+      </label>
+      <div class="desired-skill-hint">When disabled, the desired buttons stay unavailable during the round.</div>
+      <div class="desired-skill-actions">
+        <button id="desired-skill-settings-close" class="primary-btn" type="button">Done</button>
       </div>
     </div>
   </div>
