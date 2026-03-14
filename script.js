@@ -12,7 +12,7 @@ const CLEAR_ANIMATION_MS = 360;
 const DESIRED_GRID_SIZE = 5;
 const DESIRED_MAX_BLOCKS = 5;
 const DEFAULT_DESIRED_SKILL_COST = 15;
-const DESIRED_SKILL_COOLDOWN_MS = 15000;
+const DEFAULT_DESIRED_SKILL_COOLDOWN_MS = 15000;
 const MAX_CUSTOM_PIECES = 10;
 const COMPUTER_PLAYER = 0;
 
@@ -159,6 +159,7 @@ const specialSpawnCloseBtn = document.getElementById('special-spawn-close');
 const desiredSkillSettingsBtn = document.getElementById('desired-skill-settings-btn');
 const desiredSkillSettingsModalEl = document.getElementById('desired-skill-settings-modal');
 const desiredSkillCostInputEl = document.getElementById('desired-skill-cost-input');
+const desiredSkillCooldownInputEl = document.getElementById('desired-skill-cooldown-input');
 const desiredSkillToggleBtn = document.getElementById('desired-skill-toggle-btn');
 const desiredSkillSettingsCloseBtn = document.getElementById('desired-skill-settings-close');
 const gameDescriptionBtn = document.getElementById('game-description-btn');
@@ -229,6 +230,7 @@ const state = {
   prepDuration: DEFAULT_GAME_DURATION,
   prepSpecialSpawnChance: DEFAULT_SPECIAL_SPAWN_CHANCE,
   prepDesiredSkillCost: DEFAULT_DESIRED_SKILL_COST,
+  prepDesiredSkillCooldownMs: DEFAULT_DESIRED_SKILL_COOLDOWN_MS,
   desiredSkillEnabled: true,
   timerHandle: null,
   pauseHandle: null,
@@ -650,7 +652,9 @@ function renderSkillButtons() {
     const score = Math.floor(state.scores[player]);
     const cooldownMs = Math.max(0, state.skillCooldownEndsAt[player] - now);
     const cooldownSeconds = cooldownMs / 1000;
-    const handTurns = cooldownMs > 0 ? cooldownMs / DESIRED_SKILL_COOLDOWN_MS : 0;
+    const handTurns = cooldownMs > 0 && state.prepDesiredSkillCooldownMs > 0
+      ? cooldownMs / state.prepDesiredSkillCooldownMs
+      : 0;
     const skillAvailable = state.desiredSkillEnabled;
     const canUse = skillAvailable && !isComputerPlayer(player) && state.gameActive && cooldownMs <= 0 && score >= state.prepDesiredSkillCost;
 
@@ -773,10 +777,13 @@ function renderSpecialSpawnChance() {
 
 function renderDesiredSkillSettings() {
   if (desiredSkillSettingsBtn) {
-    desiredSkillSettingsBtn.textContent = `Desired Skill: ${state.desiredSkillEnabled ? 'On' : 'Off'} · Cost ${state.prepDesiredSkillCost}`;
+    desiredSkillSettingsBtn.textContent = `Desired Skill: ${state.desiredSkillEnabled ? 'On' : 'Off'} · Cost ${state.prepDesiredSkillCost} · ${Math.round(state.prepDesiredSkillCooldownMs / 1000)}s`;
   }
   if (desiredSkillCostInputEl) {
     desiredSkillCostInputEl.value = String(state.prepDesiredSkillCost);
+  }
+  if (desiredSkillCooldownInputEl) {
+    desiredSkillCooldownInputEl.value = String(Math.round(state.prepDesiredSkillCooldownMs / 1000));
   }
   if (desiredSkillToggleBtn) {
     desiredSkillToggleBtn.textContent = `Skill: ${state.desiredSkillEnabled ? 'On' : 'Off'}`;
@@ -839,6 +846,23 @@ function commitDesiredSkillCost() {
     return;
   }
   previewDesiredSkillCost(desiredSkillCostInputEl.value);
+}
+
+function previewDesiredSkillCooldown(value) {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return;
+  state.prepDesiredSkillCooldownMs = Math.max(0, Math.min(100000, Math.floor(parsed) * 1000));
+  renderDesiredSkillSettings();
+  renderSkillButtons();
+}
+
+function commitDesiredSkillCooldown() {
+  if (!desiredSkillCooldownInputEl) return;
+  if (!desiredSkillCooldownInputEl.value) {
+    renderDesiredSkillSettings();
+    return;
+  }
+  previewDesiredSkillCooldown(desiredSkillCooldownInputEl.value);
 }
 
 function toggleDesiredSkillEnabled() {
@@ -1929,7 +1953,7 @@ function removeCustomShape(shapeId) {
 function activateDesiredSkill(player, { allowComputer = false } = {}) {
   if (!canUseDesiredSkill(player, { allowComputer })) return false;
   state.scores[player] -= state.prepDesiredSkillCost;
-  state.skillCooldownEndsAt[player] = Date.now() + DESIRED_SKILL_COOLDOWN_MS;
+  state.skillCooldownEndsAt[player] = Date.now() + state.prepDesiredSkillCooldownMs;
   state.racks[player][Math.floor(MAX_RACK / 2)] = makeDesiredRackPiece(player);
   updateScores();
   renderRacks();
@@ -1945,6 +1969,7 @@ function startGameFlow() {
   commitPreparationDuration();
   commitSpecialSpawnChance();
   commitDesiredSkillCost();
+  commitDesiredSkillCooldown();
   endOverlayEl.classList.add('hidden');
   overlayEl.classList.add('hidden');
   closeGameDescriptionModal();
@@ -2065,6 +2090,14 @@ desiredSkillCostInputEl?.addEventListener('input', (event) => {
 desiredSkillCostInputEl?.addEventListener('blur', () => {
   commitDesiredSkillCost();
 });
+desiredSkillCooldownInputEl?.addEventListener('input', (event) => {
+  const digitsOnly = event.target.value.replace(/[^\d]/g, '');
+  event.target.value = digitsOnly;
+  if (digitsOnly) previewDesiredSkillCooldown(digitsOnly);
+});
+desiredSkillCooldownInputEl?.addEventListener('blur', () => {
+  commitDesiredSkillCooldown();
+});
 desiredSkillToggleBtn.addEventListener('click', toggleDesiredSkillEnabled);
 skillBtnEls.forEach((btn, player) => {
   btn.addEventListener('click', () => activateDesiredSkill(player));
@@ -2082,6 +2115,7 @@ specialSpawnCloseBtn.addEventListener('click', () => {
 });
 desiredSkillSettingsCloseBtn.addEventListener('click', () => {
   commitDesiredSkillCost();
+  commitDesiredSkillCooldown();
   closeDesiredSkillSettingsModal();
 });
 gameDescriptionCloseBtn.addEventListener('click', closeGameDescriptionModal);
@@ -2105,6 +2139,7 @@ specialSpawnModalEl.addEventListener('click', (event) => {
 desiredSkillSettingsModalEl.addEventListener('click', (event) => {
   if (event.target === desiredSkillSettingsModalEl) {
     commitDesiredSkillCost();
+    commitDesiredSkillCooldown();
     closeDesiredSkillSettingsModal();
   }
 });
@@ -2150,6 +2185,7 @@ document.addEventListener('keydown', (event) => {
     closeSpecialSpawnModal();
   } else if (event.key === 'Escape' && !desiredSkillSettingsModalEl.classList.contains('hidden')) {
     commitDesiredSkillCost();
+    commitDesiredSkillCooldown();
     closeDesiredSkillSettingsModal();
   } else if (event.key === 'Escape' && !piecePoolModalEl.classList.contains('hidden')) {
     closePiecePoolModal();

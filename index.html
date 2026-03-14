@@ -143,7 +143,7 @@
         </label>
       </div>
       <button id="special-spawn-btn" class="secondary-btn prep-setting-btn" type="button">Special Tile Chance: 5%</button>
-      <button id="desired-skill-settings-btn" class="secondary-btn prep-setting-btn" type="button">Desired Skill: On · Cost 15</button>
+      <button id="desired-skill-settings-btn" class="secondary-btn prep-setting-btn" type="button">Desired Skill: On · Cost 15 · 15s</button>
       <button id="piece-pool-btn" class="secondary-btn piece-pool-btn" type="button">Piece Types</button>
       <button id="vs-computer-btn" class="secondary-btn mode-btn" type="button">VS Computer: Off</button>
       <button id="start-btn" class="primary-btn">Start Game</button>
@@ -367,6 +367,19 @@
           inputmode="numeric"
         />
         <span class="desired-skill-unit">points</span>
+      </label>
+      <label class="desired-skill-input-wrap" for="desired-skill-cooldown-input">
+        <input
+          id="desired-skill-cooldown-input"
+          class="desired-skill-cost-input"
+          type="number"
+          min="0"
+          max="100"
+          step="1"
+          value="15"
+          inputmode="numeric"
+        />
+        <span class="desired-skill-unit">sec</span>
       </label>
       <div class="desired-skill-hint">When disabled, the desired buttons stay unavailable during the round.</div>
       <div class="desired-skill-actions">
