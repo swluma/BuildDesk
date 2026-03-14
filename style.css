@@ -614,6 +614,10 @@ body {
   margin-top: 16px;
 }
 
+.prep-description-btn {
+  margin-top: 12px;
+}
+
 .prep-player-card {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 84px;
@@ -824,6 +828,37 @@ body {
   width: min(100%, 430px);
   max-height: min(92vh, 680px);
   overflow-y: auto;
+}
+
+.game-description-card {
+  width: min(100%, 430px);
+  max-height: min(92vh, 680px);
+  overflow-y: auto;
+}
+
+.game-description-copy {
+  margin: 8px 0 0;
+  color: #d3e4ef;
+  line-height: 1.45;
+}
+
+.game-description-list {
+  display: grid;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.game-description-item {
+  padding: 12px 14px;
+  border-radius: 16px;
+  background: rgba(8, 18, 28, 0.72);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: #e8f3fa;
+  line-height: 1.4;
+}
+
+.game-description-actions {
+  margin-top: 18px;
 }
 
 .piece-pool-card {

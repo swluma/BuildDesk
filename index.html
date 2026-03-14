@@ -62,6 +62,7 @@
       <h1>BLOCK BLAST DUEL</h1>
       <p>Two players race on the same board.</p>
       <p>Long-press a piece, slide it to the board, then release to place it.</p>
+      <button id="game-description-btn" class="secondary-btn prep-description-btn" type="button">Game Description</button>
       <div class="prep-config" aria-label="desired piece setup">
         <div class="prep-player-card">
           <div class="prep-player-meta">
@@ -141,6 +142,28 @@
       <button id="piece-pool-btn" class="secondary-btn piece-pool-btn" type="button">Piece Types</button>
       <button id="vs-computer-btn" class="secondary-btn mode-btn" type="button">VS Computer: Off</button>
       <button id="start-btn" class="primary-btn">Start Game</button>
+    </div>
+  </div>
+
+  <div
+    id="game-description-modal"
+    class="overlay hidden game-description-modal"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="game-description-title"
+  >
+    <div class="overlay-card game-description-card">
+      <h2 id="game-description-title">HOW TO PLAY</h2>
+      <p class="game-description-copy">Both players place pieces on the same 8 x 8 board and race for the best score before time runs out.</p>
+      <div class="game-description-list">
+        <div class="game-description-item">Place a piece so every block fits on empty cells.</div>
+        <div class="game-description-item">Completing a full row or column clears it and awards points.</div>
+        <div class="game-description-item">Special tiles can double a clear when a completed line passes through them.</div>
+        <div class="game-description-item">Each player can configure one desired piece and trigger it during the match.</div>
+      </div>
+      <div class="game-description-actions">
+        <button id="game-description-close" class="primary-btn" type="button">Close</button>
+      </div>
     </div>
   </div>
 

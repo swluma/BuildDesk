@@ -149,6 +149,7 @@ const startBtn = document.getElementById('start-btn');
 const restartBtn = document.getElementById('restart-btn');
 const vsComputerBtn = document.getElementById('vs-computer-btn');
 const prepTimeInputEl = document.getElementById('prep-time-input');
+const gameDescriptionBtn = document.getElementById('game-description-btn');
 const pieceSlotTemplate = document.getElementById('piece-slot-template');
 const skillBtnEls = [document.getElementById('skill-btn-0'), document.getElementById('skill-btn-1')];
 const playerNameEls = [
@@ -190,6 +191,8 @@ const computerDifficultyBtn = document.getElementById('computer-difficulty-btn')
 const difficultyModalEl = document.getElementById('difficulty-modal');
 const difficultyListEl = document.getElementById('difficulty-list');
 const difficultyCloseBtn = document.getElementById('difficulty-close');
+const gameDescriptionModalEl = document.getElementById('game-description-modal');
+const gameDescriptionCloseBtn = document.getElementById('game-description-close');
 
 const state = {
   board: [],
@@ -1563,6 +1566,7 @@ function toggleVsComputer() {
 
 function openDifficultyModal() {
   if (!state.vsComputer) return;
+  closeGameDescriptionModal();
   closeDesiredPieceModal();
   closePiecePoolModal();
   difficultyModalEl.classList.remove('hidden');
@@ -1618,6 +1622,7 @@ function updateDesiredPieceModal() {
 }
 
 function openDesiredPieceModal(player) {
+  closeGameDescriptionModal();
   closeDifficultyModal();
   closePiecePoolModal();
   state.pieceEditorDraft = {
@@ -1631,6 +1636,7 @@ function openDesiredPieceModal(player) {
 
 function openCustomPieceModal() {
   if (state.customShapes.length >= MAX_CUSTOM_PIECES) return;
+  closeGameDescriptionModal();
   closeDifficultyModal();
   closePiecePoolModal();
   state.pieceEditorDraft = {
@@ -1649,6 +1655,7 @@ function closeDesiredPieceModal({ reopenPiecePool = false } = {}) {
 }
 
 function openPiecePoolModal() {
+  closeGameDescriptionModal();
   closeDifficultyModal();
   closeDesiredPieceModal();
   piecePoolModalEl.classList.remove('hidden');
@@ -1657,6 +1664,17 @@ function openPiecePoolModal() {
 
 function closePiecePoolModal() {
   piecePoolModalEl.classList.add('hidden');
+}
+
+function openGameDescriptionModal() {
+  closeDifficultyModal();
+  closeDesiredPieceModal();
+  closePiecePoolModal();
+  gameDescriptionModalEl.classList.remove('hidden');
+}
+
+function closeGameDescriptionModal() {
+  gameDescriptionModalEl.classList.add('hidden');
 }
 
 function toggleAllowedShape(shapeId) {
@@ -1770,6 +1788,7 @@ function startGameFlow() {
   commitPreparationDuration();
   endOverlayEl.classList.add('hidden');
   overlayEl.classList.add('hidden');
+  closeGameDescriptionModal();
   closeDesiredPieceModal();
   closePiecePoolModal();
   closeDifficultyModal();
@@ -1793,6 +1812,7 @@ function startGameFlow() {
 
 function returnToPreparation() {
   endOverlayEl.classList.add('hidden');
+  closeGameDescriptionModal();
   closeDesiredPieceModal();
   closePiecePoolModal();
   closeDifficultyModal();
@@ -1839,6 +1859,7 @@ playerColorOptionEls.forEach((containerEl, player) => {
   });
 });
 piecePoolBtn.addEventListener('click', openPiecePoolModal);
+gameDescriptionBtn.addEventListener('click', openGameDescriptionModal);
 vsComputerBtn.addEventListener('click', toggleVsComputer);
 computerDifficultyBtn.addEventListener('click', openDifficultyModal);
 customPieceBtn.addEventListener('click', openCustomPieceModal);
@@ -1860,6 +1881,7 @@ desiredPieceCancelBtn.addEventListener('click', () => closeDesiredPieceModal({
 desiredPieceSaveBtn.addEventListener('click', saveDesiredDraft);
 piecePoolCloseBtn.addEventListener('click', closePiecePoolModal);
 difficultyCloseBtn.addEventListener('click', closeDifficultyModal);
+gameDescriptionCloseBtn.addEventListener('click', closeGameDescriptionModal);
 desiredPieceModalEl.addEventListener('click', (event) => {
   if (event.target === desiredPieceModalEl) {
     closeDesiredPieceModal({ reopenPiecePool: Boolean(state.pieceEditorDraft?.returnToPiecePool) });
@@ -1870,6 +1892,9 @@ difficultyModalEl.addEventListener('click', (event) => {
 });
 piecePoolModalEl.addEventListener('click', (event) => {
   if (event.target === piecePoolModalEl) closePiecePoolModal();
+});
+gameDescriptionModalEl.addEventListener('click', (event) => {
+  if (event.target === gameDescriptionModalEl) closeGameDescriptionModal();
 });
 startBtn.addEventListener('click', startGameFlow);
 restartBtn.addEventListener('click', returnToPreparation);
@@ -1904,6 +1929,8 @@ document.addEventListener('keydown', (event) => {
     closeDifficultyModal();
   } else if (event.key === 'Escape' && !piecePoolModalEl.classList.contains('hidden')) {
     closePiecePoolModal();
+  } else if (event.key === 'Escape' && !gameDescriptionModalEl.classList.contains('hidden')) {
+    closeGameDescriptionModal();
   }
 });
 
