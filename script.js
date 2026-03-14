@@ -1003,8 +1003,12 @@ async function toggleFullscreenMode() {
   renderFullscreenButton();
 }
 
-function renderPiecePoolList() {
-  const scrollTop = piecePoolListEl.scrollTop;
+function renderPiecePoolList({ preserveFocus = false } = {}) {
+  const scrollContainer = piecePoolListEl?.closest('.piece-pool-card');
+  const scrollTop = scrollContainer?.scrollTop ?? 0;
+  const activeShapeId = preserveFocus && document.activeElement instanceof HTMLElement
+    ? document.activeElement.closest('.piece-pool-item')?.dataset.shapeId || null
+    : null;
   buildPiecePoolList();
   const totalCount = getAllShapeDefs().length;
   const enabledCount = state.allowedShapeIds.size;
@@ -1030,7 +1034,11 @@ function renderPiecePoolList() {
     toggleCustomPiecesBtn.classList.toggle('active', allCustomEnabled);
     toggleCustomPiecesBtn.disabled = customIds.length === 0;
   }
-  piecePoolListEl.scrollTop = scrollTop;
+  if (scrollContainer) scrollContainer.scrollTop = scrollTop;
+  if (activeShapeId) {
+    const nextActiveEl = piecePoolListEl.querySelector(`.piece-pool-item[data-shape-id="${activeShapeId}"]`);
+    if (nextActiveEl instanceof HTMLElement) nextActiveEl.focus({ preventScroll: true });
+  }
   renderPiecePoolButton();
 }
 
@@ -2790,7 +2798,7 @@ function toggleAllowedShape(shapeId) {
   } else {
     state.allowedShapeIds.add(shapeId);
   }
-  renderPiecePoolList();
+  renderPiecePoolList({ preserveFocus: true });
   persistSettingsToStorage();
 }
 
