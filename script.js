@@ -180,6 +180,7 @@ const specialSpawnModalEl = document.getElementById('special-spawn-modal');
 const specialSpawnInputEl = document.getElementById('special-spawn-input');
 const specialSpawnCloseBtn = document.getElementById('special-spawn-close');
 const stuckPenaltyBtn = document.getElementById('stuck-penalty-btn');
+const nonStopModeBtn = document.getElementById('non-stop-mode-btn');
 const stuckPenaltyModalEl = document.getElementById('stuck-penalty-modal');
 const stuckPenaltyInputEl = document.getElementById('stuck-penalty-input');
 const stuckPenaltyCloseBtn = document.getElementById('stuck-penalty-close');
@@ -298,6 +299,7 @@ const state = {
   prepDuration: DEFAULT_GAME_DURATION,
   prepSpecialSpawnChance: DEFAULT_SPECIAL_SPAWN_CHANCE,
   prepStuckPenalty: DEFAULT_STUCK_PENALTY,
+  prepNonStopMode: false,
   prepDesiredSkillCost: DEFAULT_DESIRED_SKILL_COST,
   prepDesiredSkillCooldownMs: DEFAULT_DESIRED_SKILL_COOLDOWN_MS,
   desiredSkillEnabled: true,
@@ -618,6 +620,7 @@ function applyDefaultSettings() {
   state.prepDuration = DEFAULT_GAME_DURATION;
   state.prepSpecialSpawnChance = DEFAULT_SPECIAL_SPAWN_CHANCE;
   state.prepStuckPenalty = DEFAULT_STUCK_PENALTY;
+  state.prepNonStopMode = false;
   state.prepDesiredSkillCost = DEFAULT_DESIRED_SKILL_COST;
   state.prepDesiredSkillCooldownMs = DEFAULT_DESIRED_SKILL_COOLDOWN_MS;
   state.desiredSkillEnabled = true;
@@ -1258,6 +1261,7 @@ function getSettingsPayload() {
     prepDuration: state.prepDuration,
     prepSpecialSpawnChance: state.prepSpecialSpawnChance,
     prepStuckPenalty: state.prepStuckPenalty,
+    prepNonStopMode: state.prepNonStopMode,
     prepDesiredSkillCost: state.prepDesiredSkillCost,
     prepDesiredSkillCooldownMs: state.prepDesiredSkillCooldownMs,
     desiredSkillEnabled: state.desiredSkillEnabled,
@@ -1350,6 +1354,7 @@ function applySettingsPayload(payload, { persist = true } = {}) {
     0,
     Math.min(1, Number(payload.prepStuckPenalty ?? DEFAULT_STUCK_PENALTY)),
   );
+  state.prepNonStopMode = Boolean(payload.prepNonStopMode);
   state.prepDesiredSkillCost = Math.max(0, Math.min(100, Math.floor(Number(payload.prepDesiredSkillCost) || 0)));
   state.prepDesiredSkillCooldownMs = Math.max(0, Math.min(100000, Math.floor(Number(payload.prepDesiredSkillCooldownMs) || 0)));
   state.desiredSkillEnabled = Boolean(payload.desiredSkillEnabled);
@@ -1477,6 +1482,11 @@ function renderStuckPenalty() {
   if (stuckPenaltyInputEl) {
     stuckPenaltyInputEl.value = String(getStuckPenaltyPercent());
   }
+  if (nonStopModeBtn) {
+    nonStopModeBtn.textContent = `Non-Stop Mode: ${state.prepNonStopMode ? 'On' : 'Off'}`;
+    nonStopModeBtn.classList.toggle('active', state.prepNonStopMode);
+    nonStopModeBtn.setAttribute('aria-pressed', String(state.prepNonStopMode));
+  }
 }
 
 function previewPreparationDuration(value) {
@@ -1539,6 +1549,12 @@ function commitStuckPenalty() {
     return;
   }
   previewStuckPenalty(stuckPenaltyInputEl.value);
+}
+
+function toggleNonStopMode() {
+  state.prepNonStopMode = !state.prepNonStopMode;
+  renderStuckPenalty();
+  persistSettingsToStorage();
 }
 
 function commitDesiredSkillCost() {
@@ -2424,11 +2440,17 @@ function clearBoardAndRefreshPieces() {
 }
 
 function handleStuck(triggerPlayer) {
-  state.gameActive = false;
-  clearComputerMoveTimer();
   const keptRatio = Math.max(0, 1 - state.prepStuckPenalty);
   state.scores[triggerPlayer] = Math.floor(state.scores[triggerPlayer] * keptRatio);
   updateScores();
+  if (state.prepNonStopMode) {
+    clearComputerMoveTimer();
+    clearBoardAndRefreshPieces();
+    scheduleComputerMove();
+    return;
+  }
+  state.gameActive = false;
+  clearComputerMoveTimer();
   showPauseOverlay(`${getPlayerDisplayName(triggerPlayer)} caused a jam. Score reduced by ${getStuckPenaltyPercent()}%!`);
   clearBoardAndRefreshPieces();
 
@@ -3132,6 +3154,7 @@ stuckPenaltyInputEl?.addEventListener('input', (event) => {
 stuckPenaltyInputEl?.addEventListener('blur', () => {
   commitStuckPenalty();
 });
+nonStopModeBtn?.addEventListener('click', toggleNonStopMode);
 desiredSkillCostInputEl?.addEventListener('input', (event) => {
   const digitsOnly = event.target.value.replace(/[^\d]/g, '');
   event.target.value = digitsOnly;
