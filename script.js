@@ -15,6 +15,8 @@ const DESIRED_MAX_BLOCKS = 5;
 const DEFAULT_DESIRED_SKILL_COST = 15;
 const DEFAULT_DESIRED_SKILL_COOLDOWN_MS = 15000;
 const MAX_CUSTOM_PIECES = 10;
+const MIN_CUSTOM_COMPUTER_INTERVAL_MS = 100;
+const MAX_CUSTOM_COMPUTER_INTERVAL_MS = 5000;
 const SETTINGS_STORAGE_KEY = 'blockblast_duel_settings_v1';
 
 const COMPUTER_DIFFICULTIES = {
@@ -257,6 +259,12 @@ const difficultyModalEl = document.getElementById('difficulty-modal');
 const difficultyListEl = document.getElementById('difficulty-list');
 const difficultyCloseBtn = document.getElementById('difficulty-close');
 const difficultyModalTitleEl = document.getElementById('difficulty-modal-title');
+const difficultyCustomStatusEl = document.getElementById('difficulty-custom-status');
+const difficultyCustomIntervalEl = document.getElementById('difficulty-custom-interval');
+const difficultyCustomIntervalValueEl = document.getElementById('difficulty-custom-interval-value');
+const difficultyCustomDesiredToggleBtn = document.getElementById('difficulty-custom-desired-toggle');
+const difficultyCustomStrategyEl = document.getElementById('difficulty-custom-strategy');
+const difficultyCustomStrategyCopyEl = document.getElementById('difficulty-custom-strategy-copy');
 const gameDescriptionModalEl = document.getElementById('game-description-modal');
 const gameDescriptionCloseBtn = document.getElementById('game-description-close');
 
@@ -297,6 +305,7 @@ const state = {
   computerPlayers: [false, false],
   computerMoveHandles: [null, null],
   computerDifficulties: ['normal', 'normal'],
+  customComputerSettings: [0, 1].map(() => makeDefaultCustomComputerSettings()),
   activeDifficultyPlayer: 0,
 };
 
@@ -308,6 +317,34 @@ function randomItem(arr) {
 
 function cloneCells(cells) {
   return cells.map(([x, y]) => [x, y]);
+}
+
+function clampCustomComputerIntervalMs(value) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return COMPUTER_DIFFICULTIES.normal.intervalMs;
+  return Math.max(
+    MIN_CUSTOM_COMPUTER_INTERVAL_MS,
+    Math.min(MAX_CUSTOM_COMPUTER_INTERVAL_MS, Math.round(numeric / 100) * 100),
+  );
+}
+
+function makeDefaultCustomComputerSettings() {
+  return {
+    intervalMs: COMPUTER_DIFFICULTIES.normal.intervalMs,
+    allowDesiredSkill: COMPUTER_DIFFICULTIES.normal.allowDesiredSkill,
+    strategyKey: 'normal',
+  };
+}
+
+function normalizeCustomComputerSettingsEntry(value) {
+  const strategyKey = COMPUTER_DIFFICULTIES[value?.strategyKey] ? value.strategyKey : 'normal';
+  return {
+    intervalMs: clampCustomComputerIntervalMs(value?.intervalMs),
+    allowDesiredSkill: value?.allowDesiredSkill === undefined
+      ? COMPUTER_DIFFICULTIES.normal.allowDesiredSkill
+      : Boolean(value.allowDesiredSkill),
+    strategyKey,
+  };
 }
 
 function dimsForCells(cells) {
@@ -531,6 +568,18 @@ function getSkillLabel(player) {
 
 function getComputerDifficultyConfig(player) {
   const key = state.computerDifficulties[player];
+  if (key === 'custom') {
+    const customSettings = normalizeCustomComputerSettingsEntry(state.customComputerSettings[player] || {});
+    const strategyConfig = COMPUTER_DIFFICULTIES[customSettings.strategyKey] || COMPUTER_DIFFICULTIES.normal;
+    return {
+      ...strategyConfig,
+      key,
+      label: 'Custom',
+      intervalMs: customSettings.intervalMs,
+      allowDesiredSkill: customSettings.allowDesiredSkill,
+      description: `Custom timing with ${strategyConfig.label.toLowerCase()} strategy.`,
+    };
+  }
   return COMPUTER_DIFFICULTIES[key] || COMPUTER_DIFFICULTIES.normal;
 }
 
@@ -564,6 +613,7 @@ function applyDefaultSettings() {
   state.desiredSkillEnabled = true;
   state.computerPlayers = [false, false];
   state.computerDifficulties = ['normal', 'normal'];
+  state.customComputerSettings = [0, 1].map(() => makeDefaultCustomComputerSettings());
   state.activeDifficultyPlayer = 0;
   initAllowedShapes();
   initDesiredPieces();
@@ -682,7 +732,11 @@ function buildPiecePoolList() {
 function buildDifficultyList() {
   const player = state.activeDifficultyPlayer;
   difficultyListEl.innerHTML = '';
-  Object.entries(COMPUTER_DIFFICULTIES).forEach(([key, config]) => {
+  const difficultyEntries = [
+    ...Object.entries(COMPUTER_DIFFICULTIES),
+    ['custom', getComputerDifficultyConfig(player)],
+  ];
+  difficultyEntries.forEach(([key, config]) => {
     const optionEl = document.createElement('button');
     optionEl.type = 'button';
     optionEl.className = 'difficulty-option';
@@ -705,7 +759,7 @@ function buildDifficultyList() {
 
     const metaEl = document.createElement('div');
     metaEl.className = 'difficulty-option-meta';
-    metaEl.textContent = `${(config.intervalMs / 1000).toFixed(0)}s per move`;
+    metaEl.textContent = `${(config.intervalMs / 1000).toFixed(1)}s per move`;
 
     const copyEl = document.createElement('div');
     copyEl.className = 'difficulty-option-copy';
@@ -714,6 +768,37 @@ function buildDifficultyList() {
     optionEl.append(titleEl, metaEl, copyEl);
     difficultyListEl.appendChild(optionEl);
   });
+  renderDifficultyCustomPanel();
+}
+
+function renderDifficultyCustomPanel() {
+  const player = state.activeDifficultyPlayer;
+  const customSettings = normalizeCustomComputerSettingsEntry(state.customComputerSettings[player] || {});
+  state.customComputerSettings[player] = customSettings;
+  const enabled = state.computerDifficulties[player] === 'custom';
+  const strategyConfig = COMPUTER_DIFFICULTIES[customSettings.strategyKey] || COMPUTER_DIFFICULTIES.normal;
+  if (difficultyCustomStatusEl) {
+    difficultyCustomStatusEl.textContent = enabled ? 'Custom settings active' : 'Select Custom to edit';
+  }
+  if (difficultyCustomIntervalEl) {
+    difficultyCustomIntervalEl.value = (customSettings.intervalMs / 1000).toFixed(1);
+    difficultyCustomIntervalEl.disabled = !enabled;
+  }
+  if (difficultyCustomIntervalValueEl) {
+    difficultyCustomIntervalValueEl.textContent = `${(customSettings.intervalMs / 1000).toFixed(1)}s`;
+  }
+  if (difficultyCustomDesiredToggleBtn) {
+    difficultyCustomDesiredToggleBtn.disabled = !enabled;
+    difficultyCustomDesiredToggleBtn.textContent = `Desired Pieces: ${customSettings.allowDesiredSkill ? 'On' : 'Off'}`;
+    difficultyCustomDesiredToggleBtn.classList.toggle('active', customSettings.allowDesiredSkill);
+  }
+  if (difficultyCustomStrategyEl) {
+    difficultyCustomStrategyEl.value = customSettings.strategyKey;
+    difficultyCustomStrategyEl.disabled = !enabled;
+  }
+  if (difficultyCustomStrategyCopyEl) {
+    difficultyCustomStrategyCopyEl.textContent = strategyConfig.description;
+  }
 }
 
 function fillAllRacks() {
@@ -1144,6 +1229,11 @@ function getSettingsPayload() {
     desiredSkillEnabled: state.desiredSkillEnabled,
     computerPlayers: [...state.computerPlayers],
     computerDifficulties: [...state.computerDifficulties],
+    customComputerSettings: state.customComputerSettings.map((settings) => ({
+      intervalMs: settings.intervalMs,
+      allowDesiredSkill: settings.allowDesiredSkill,
+      strategyKey: settings.strategyKey,
+    })),
     playerColorThemeIndexes: [...state.playerColorThemeIndexes],
     playerCustomColors: [...state.playerCustomColors],
     playerGlowLevels: [...state.playerGlowLevels],
@@ -1236,10 +1326,13 @@ function applySettingsPayload(payload, { persist = true } = {}) {
   state.computerDifficulties = [0, 1].map((player) => {
     if (Array.isArray(payload.computerDifficulties)) {
       const key = payload.computerDifficulties[player];
-      return COMPUTER_DIFFICULTIES[key] ? key : 'normal';
+      return key === 'custom' || COMPUTER_DIFFICULTIES[key] ? key : 'normal';
     }
     return COMPUTER_DIFFICULTIES[payload.computerDifficulty] ? payload.computerDifficulty : 'normal';
   });
+  state.customComputerSettings = [0, 1].map((player) => (
+    normalizeCustomComputerSettingsEntry(payload.customComputerSettings?.[player] || {})
+  ));
   state.activeDifficultyPlayer = 0;
   state.playerColorThemeIndexes = [0, 1].map((player) => {
     const index = Number(payload.playerColorThemeIndexes?.[player]);
@@ -2357,6 +2450,20 @@ function closeDifficultyModal() {
   difficultyModalEl.classList.add('hidden');
 }
 
+function updateCustomComputerSettings(player, updates) {
+  state.customComputerSettings[player] = normalizeCustomComputerSettingsEntry({
+    ...(state.customComputerSettings[player] || makeDefaultCustomComputerSettings()),
+    ...updates,
+  });
+  renderModeUi();
+  if (!difficultyModalEl.classList.contains('hidden')) renderDifficultyCustomPanel();
+  if (isComputerPlayer(player) && state.computerDifficulties[player] === 'custom' && state.gameActive) {
+    clearComputerMoveTimer(player);
+    scheduleComputerMove(player);
+  }
+  persistSettingsToStorage();
+}
+
 function openSpecialSpawnModal() {
   closeSettingsTransferModal();
   closeBlockStyleModal();
@@ -2931,6 +3038,19 @@ desiredPieceCancelBtn.addEventListener('click', () => closeDesiredPieceModal({
 desiredPieceSaveBtn.addEventListener('click', saveDesiredDraft);
 piecePoolCloseBtn.addEventListener('click', closePiecePoolModal);
 difficultyCloseBtn.addEventListener('click', closeDifficultyModal);
+difficultyCustomIntervalEl?.addEventListener('input', (event) => {
+  updateCustomComputerSettings(state.activeDifficultyPlayer, {
+    intervalMs: Math.round(Number(event.target.value) * 1000),
+  });
+});
+difficultyCustomDesiredToggleBtn?.addEventListener('click', () => {
+  const player = state.activeDifficultyPlayer;
+  const current = normalizeCustomComputerSettingsEntry(state.customComputerSettings[player] || {});
+  updateCustomComputerSettings(player, { allowDesiredSkill: !current.allowDesiredSkill });
+});
+difficultyCustomStrategyEl?.addEventListener('change', (event) => {
+  updateCustomComputerSettings(state.activeDifficultyPlayer, { strategyKey: event.target.value });
+});
 blockStyleCloseBtn.addEventListener('click', closeBlockStyleModal);
 settingsTransferCloseBtn.addEventListener('click', closeSettingsTransferModal);
 settingsCopyBtn.addEventListener('click', () => {

@@ -425,6 +425,38 @@
       <h2 id="difficulty-modal-title">COMPUTER DIFFICULTY</h2>
       <p class="difficulty-copy">Choose how fast and how intelligently the computer plays.</p>
       <div id="difficulty-list" class="difficulty-list" aria-label="computer difficulty options"></div>
+      <section class="difficulty-custom-panel" aria-labelledby="difficulty-custom-title">
+        <div class="difficulty-custom-header">
+          <h3 id="difficulty-custom-title" class="difficulty-custom-title">CUSTOM COMPUTER</h3>
+          <div id="difficulty-custom-status" class="difficulty-custom-status">Select Custom to edit</div>
+        </div>
+        <label class="difficulty-custom-field" for="difficulty-custom-interval">
+          <span class="difficulty-custom-label">Move Interval</span>
+          <input
+            id="difficulty-custom-interval"
+            class="difficulty-custom-range"
+            type="range"
+            min="0.1"
+            max="5"
+            step="0.1"
+            value="4"
+          />
+          <span id="difficulty-custom-interval-value" class="difficulty-custom-value">4.0s</span>
+        </label>
+        <button id="difficulty-custom-desired-toggle" class="secondary-btn difficulty-custom-toggle" type="button">
+          Desired Pieces: On
+        </button>
+        <label class="difficulty-custom-field" for="difficulty-custom-strategy">
+          <span class="difficulty-custom-label">Strategy</span>
+          <select id="difficulty-custom-strategy" class="difficulty-custom-select">
+            <option value="easy">Easy</option>
+            <option value="normal">Normal</option>
+            <option value="hard">Hard</option>
+            <option value="insane">Insane</option>
+          </select>
+        </label>
+        <p id="difficulty-custom-strategy-copy" class="difficulty-custom-copy"></p>
+      </section>
       <div class="difficulty-actions">
         <button id="difficulty-close" class="primary-btn" type="button">Done</button>
       </div>
