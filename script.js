@@ -823,9 +823,12 @@ function renderPiecePoolList() {
   buildPiecePoolList();
   const totalCount = getAllShapeDefs().length;
   const enabledCount = state.allowedShapeIds.size;
-  piecePoolSummaryEl.textContent = `${enabledCount} of ${totalCount} enabled`;
+  piecePoolSummaryEl.textContent = enabledCount > 0
+    ? `${enabledCount} of ${totalCount} enabled`
+    : `0 of ${totalCount} enabled. Enable at least one piece to confirm.`;
   customPieceBtn.textContent = `Add Custom Piece (${state.customShapes.length}/${MAX_CUSTOM_PIECES})`;
   customPieceBtn.disabled = state.customShapes.length >= MAX_CUSTOM_PIECES;
+  piecePoolCloseBtn.disabled = enabledCount === 0;
   const commonIds = getCommonShapeIds();
   const customIds = getCustomShapeIds();
   const commonEnabled = commonIds.filter((shapeId) => state.allowedShapeIds.has(shapeId)).length;
