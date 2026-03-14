@@ -560,7 +560,7 @@ function isSingleBottomHumanView() {
 }
 
 function getPlayerDisplayName(player) {
-  if (isComputerPlayer(player)) return 'COMPUTER';
+  if (isComputerPlayer(player)) return `COMPUTER ${player + 1}`;
   return `PLAYER ${player + 1}`;
 }
 
