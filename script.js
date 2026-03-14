@@ -1605,7 +1605,7 @@ function finishDrag(drag) {
   drag.originEl.classList.remove('drag-origin');
   drag.dragEl.remove();
   if (!state.gameActive) return;
-  if (drag.valid && drag.candidate) {
+  if (drag.valid && drag.candidate && canPlacePiece(drag.piece, drag.candidate.x, drag.candidate.y)) {
     placeDraggedPiece(drag);
   } else {
     flashInvalid(drag.originEl);
@@ -1997,14 +1997,17 @@ function animateAndClear(rows, cols, consumedSpecialTiles = []) {
     }
   });
 
+  // Clear the logical board immediately so overlapping turns cannot rescore
+  // the same completed lines while the clear animation is still visible.
+  rows.forEach((y) => {
+    for (let x = 0; x < BOARD_SIZE; x += 1) state.board[y][x] = null;
+  });
+  cols.forEach((x) => {
+    for (let y = 0; y < BOARD_SIZE; y += 1) state.board[y][x] = null;
+  });
+  consumedSpecialTiles.forEach((key) => state.specialTiles.delete(key));
+
   setTimeout(() => {
-    rows.forEach((y) => {
-      for (let x = 0; x < BOARD_SIZE; x += 1) state.board[y][x] = null;
-    });
-    cols.forEach((x) => {
-      for (let y = 0; y < BOARD_SIZE; y += 1) state.board[y][x] = null;
-    });
-    consumedSpecialTiles.forEach((key) => state.specialTiles.delete(key));
     renderBoard();
     renderRacks();
     renderSpecialSlot();
