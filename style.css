@@ -114,6 +114,22 @@ body {
   gap: 6px;
 }
 
+.player-top {
+  grid-template-rows: auto auto minmax(0, 1fr);
+}
+
+.player-top .player-header {
+  grid-row: 1;
+}
+
+.player-top .score-row {
+  grid-row: 2;
+}
+
+.player-top .piece-rack {
+  grid-row: 3;
+}
+
 .score-row {
   min-height: 0;
   display: grid;
@@ -122,10 +138,22 @@ body {
   align-items: stretch;
 }
 
+.player-top .score-row {
+  grid-template-columns: clamp(88px, 16vw, 116px) minmax(0, 1fr);
+}
+
 .player-top .score-box,
 .player-top .score-skill-btn {
   transform: rotate(180deg);
   transform-origin: center;
+}
+
+.player-top .score-row .score-box {
+  order: 2;
+}
+
+.player-top .score-row .score-skill-btn {
+  order: 1;
 }
 
 .player-header {
