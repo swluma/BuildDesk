@@ -3,7 +3,7 @@ const MAX_RACK = 3;
 const DEFAULT_GAME_DURATION = 120;
 const MIN_GAME_DURATION = 30;
 const MAX_GAME_DURATION = 600;
-const SPECIAL_SPAWN_CHANCE = 0.05;
+const DEFAULT_SPECIAL_SPAWN_CHANCE = 0.05;
 const SPECIAL_TILE_COUNT = 3;
 const RESUME_COUNTDOWN = 3;
 const INVALID_FLASH_MS = 800;
@@ -131,7 +131,6 @@ const app = document.getElementById('app');
 const boardEl = document.getElementById('board');
 const boardShellEl = document.getElementById('board-shell');
 const scorePopupLayerEl = document.getElementById('score-popup-layer');
-const boardEffectLayerEl = document.getElementById('board-effect-layer');
 const rackEls = [document.getElementById('rack-0'), document.getElementById('rack-1')];
 const scoreEls = [document.getElementById('score-0'), document.getElementById('score-1')];
 const timerEl = document.getElementById('timer');
@@ -153,6 +152,10 @@ const startBtn = document.getElementById('start-btn');
 const restartBtn = document.getElementById('restart-btn');
 const vsComputerBtn = document.getElementById('vs-computer-btn');
 const prepTimeInputEl = document.getElementById('prep-time-input');
+const specialSpawnBtn = document.getElementById('special-spawn-btn');
+const specialSpawnModalEl = document.getElementById('special-spawn-modal');
+const specialSpawnInputEl = document.getElementById('special-spawn-input');
+const specialSpawnCloseBtn = document.getElementById('special-spawn-close');
 const gameDescriptionBtn = document.getElementById('game-description-btn');
 const pieceSlotTemplate = document.getElementById('piece-slot-template');
 const skillBtnEls = [document.getElementById('skill-btn-0'), document.getElementById('skill-btn-1')];
@@ -219,12 +222,12 @@ const state = {
   manualPauseActive: false,
   timeLeft: DEFAULT_GAME_DURATION,
   prepDuration: DEFAULT_GAME_DURATION,
+  prepSpecialSpawnChance: DEFAULT_SPECIAL_SPAWN_CHANCE,
   timerHandle: null,
   pauseHandle: null,
   skillUiHandle: null,
   boardMetrics: null,
   scorePopupHandle: null,
-  boardEffectHandle: null,
   vsComputer: false,
   computerMoveHandle: null,
   computerDifficulty: 'normal',
@@ -693,7 +696,7 @@ function renderBoard() {
   for (let y = 0; y < BOARD_SIZE; y += 1) {
     for (let x = 0; x < BOARD_SIZE; x += 1) {
       const cellEl = state.boardCells[y][x];
-      cellEl.classList.remove('clearing', 'ghost-valid', 'ghost-invalid');
+      cellEl.classList.remove('clearing', 'ghost-valid', 'ghost-invalid', 'special-spawn');
       cellEl.classList.toggle('special-tile', state.specialTiles.has(`${x},${y}`));
       cellEl.innerHTML = '';
       const cellState = state.board[y][x];
@@ -747,6 +750,19 @@ function renderPreparationDuration() {
   }
 }
 
+function getSpecialSpawnChancePercent() {
+  return Math.round(state.prepSpecialSpawnChance * 100);
+}
+
+function renderSpecialSpawnChance() {
+  if (specialSpawnBtn) {
+    specialSpawnBtn.textContent = `Special Tile Chance: ${getSpecialSpawnChancePercent()}%`;
+  }
+  if (specialSpawnInputEl) {
+    specialSpawnInputEl.value = String(getSpecialSpawnChancePercent());
+  }
+}
+
 function setPreparationDuration(value) {
   state.prepDuration = clampPreparationDuration(value);
   renderPreparationDuration();
@@ -769,6 +785,22 @@ function commitPreparationDuration() {
     return;
   }
   setPreparationDuration(prepTimeInputEl.value);
+}
+
+function previewSpecialSpawnChance(value) {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return;
+  state.prepSpecialSpawnChance = Math.max(0, Math.min(1, parsed / 100));
+  renderSpecialSpawnChance();
+}
+
+function commitSpecialSpawnChance() {
+  if (!specialSpawnInputEl) return;
+  if (!specialSpawnInputEl.value) {
+    renderSpecialSpawnChance();
+    return;
+  }
+  previewSpecialSpawnChance(specialSpawnInputEl.value);
 }
 
 function sizeBoardToFit() {
@@ -1302,56 +1334,7 @@ function showScorePopup({ lineCount, points, specialDoubled }, anchorCell, playe
   }, 1000);
 }
 
-function showBoardEffectPopup(label, detail, anchorCell, variant = 'special', player = null) {
-  if (!boardEffectLayerEl) return;
-  if (!state.boardMetrics) refreshLayoutMetrics();
-
-  if (state.boardEffectHandle) clearTimeout(state.boardEffectHandle);
-  state.boardEffectHandle = null;
-  boardEffectLayerEl.innerHTML = '';
-
-  const effectEl = document.createElement('div');
-  effectEl.className = `board-effect-popup ${variant}`;
-  if (player === 0) effectEl.classList.add('player-top-clear');
-
-  const labelEl = document.createElement('div');
-  labelEl.className = 'board-effect-label';
-  labelEl.textContent = label;
-  effectEl.appendChild(labelEl);
-
-  if (detail) {
-    const detailEl = document.createElement('div');
-    detailEl.className = 'board-effect-detail';
-    detailEl.textContent = detail;
-    effectEl.appendChild(detailEl);
-  }
-
-  const cellSize = state.boardMetrics.cellSize;
-  const left = Math.min(state.boardMetrics.width - 24, Math.max(24, (anchorCell.x + 0.5) * cellSize));
-  const top = Math.min(state.boardMetrics.height - 24, Math.max(28, (anchorCell.y + 0.5) * cellSize));
-
-  effectEl.style.left = `${left}px`;
-  effectEl.style.top = `${top}px`;
-  boardEffectLayerEl.appendChild(effectEl);
-
-  state.boardEffectHandle = setTimeout(() => {
-    effectEl.remove();
-    state.boardEffectHandle = null;
-  }, 720);
-}
-
-function getSpecialEffectAnchor(consumedSpecialTiles, rows, cols) {
-  if (consumedSpecialTiles.length) {
-    const coords = consumedSpecialTiles.map((key) => key.split(',').map(Number));
-    const total = coords.reduce((acc, [x, y]) => ({ x: acc.x + x, y: acc.y + y }), { x: 0, y: 0 });
-    return { x: total.x / coords.length, y: total.y / coords.length };
-  }
-  if (rows.length) return { x: (BOARD_SIZE - 1) / 2, y: rows[0] };
-  if (cols.length) return { x: cols[0], y: (BOARD_SIZE - 1) / 2 };
-  return { x: (BOARD_SIZE - 1) / 2, y: (BOARD_SIZE - 1) / 2 };
-}
-
-function animateAndClear(rows, cols, consumedSpecialTiles = [], player = null) {
+function animateAndClear(rows, cols, consumedSpecialTiles = []) {
   const seen = new Set();
   rows.forEach((y) => {
     for (let x = 0; x < BOARD_SIZE; x += 1) {
@@ -1370,12 +1353,6 @@ function animateAndClear(rows, cols, consumedSpecialTiles = [], player = null) {
     }
   });
 
-  if (consumedSpecialTiles.length) {
-    const effectAnchor = getSpecialEffectAnchor(consumedSpecialTiles, rows, cols);
-    const clearLabel = rows.length + cols.length > 1 ? 'CHAIN CLEAR' : 'LINE CLEAR';
-    showBoardEffectPopup(clearLabel, 'Special tile triggered', effectAnchor, 'special', player);
-  }
-
   setTimeout(() => {
     rows.forEach((y) => {
       for (let x = 0; x < BOARD_SIZE; x += 1) state.board[y][x] = null;
@@ -1390,8 +1367,31 @@ function animateAndClear(rows, cols, consumedSpecialTiles = [], player = null) {
   }, CLEAR_ANIMATION_MS);
 }
 
+function animateSpecialTileSpawn(tileKeys) {
+  tileKeys.forEach((key) => {
+    const [x, y] = key.split(',').map(Number);
+    const cellEl = state.boardCells?.[y]?.[x];
+    if (!cellEl) return;
+    cellEl.classList.remove('special-spawn');
+    void cellEl.offsetWidth;
+    cellEl.classList.add('special-spawn');
+    setTimeout(() => cellEl.classList.remove('special-spawn'), 720);
+  });
+}
+
+function renderSpawnedSpecialTiles(tileKeys) {
+  tileKeys.forEach((key) => {
+    const [x, y] = key.split(',').map(Number);
+    const cellEl = state.boardCells?.[y]?.[x];
+    if (!cellEl) return;
+    cellEl.classList.add('special-tile');
+    const fillEl = cellEl.querySelector('.board-cell-fill');
+    if (fillEl) fillEl.classList.add('on-special-tile');
+  });
+}
+
 function maybeSpawnSpecialTiles() {
-  if (Math.random() >= SPECIAL_SPAWN_CHANCE) return;
+  if (Math.random() >= state.prepSpecialSpawnChance) return;
   const availableTiles = [];
   for (let y = 0; y < BOARD_SIZE; y += 1) {
     for (let x = 0; x < BOARD_SIZE; x += 1) {
@@ -1401,12 +1401,15 @@ function maybeSpawnSpecialTiles() {
   }
   if (!availableTiles.length) return;
   const spawnCount = Math.min(SPECIAL_TILE_COUNT, availableTiles.length);
+  const spawnedTiles = [];
   for (let i = 0; i < spawnCount; i += 1) {
     const pickIndex = Math.floor(Math.random() * availableTiles.length);
     const [tileKey] = availableTiles.splice(pickIndex, 1);
     state.specialTiles.add(tileKey);
+    spawnedTiles.push(tileKey);
   }
-  renderBoard();
+  renderSpawnedSpecialTiles(spawnedTiles);
+  animateSpecialTileSpawn(spawnedTiles);
   renderSpecialSlot();
 }
 
@@ -1473,7 +1476,7 @@ function placeDraggedPiece(drag) {
     state.scores[scoringPlayer] += scoreResult.points;
     updateScores();
     showScorePopup(scoreResult, getPopupAnchorCell(drag.piece, x, y), scoringPlayer);
-    animateAndClear(clearInfo.rows, clearInfo.cols, scoreResult.consumedSpecialTiles, scoringPlayer);
+    animateAndClear(clearInfo.rows, clearInfo.cols, scoreResult.consumedSpecialTiles);
     maybeSpawnSpecialTiles();
   }
 
@@ -1640,12 +1643,26 @@ function openDifficultyModal() {
   closeGameDescriptionModal();
   closeDesiredPieceModal();
   closePiecePoolModal();
+  closeSpecialSpawnModal();
   difficultyModalEl.classList.remove('hidden');
   buildDifficultyList();
 }
 
 function closeDifficultyModal() {
   difficultyModalEl.classList.add('hidden');
+}
+
+function openSpecialSpawnModal() {
+  closeGameDescriptionModal();
+  closeDesiredPieceModal();
+  closePiecePoolModal();
+  closeDifficultyModal();
+  renderSpecialSpawnChance();
+  specialSpawnModalEl.classList.remove('hidden');
+}
+
+function closeSpecialSpawnModal() {
+  specialSpawnModalEl.classList.add('hidden');
 }
 
 function centerCellsInEditor(cells) {
@@ -1695,6 +1712,7 @@ function updateDesiredPieceModal() {
 function openDesiredPieceModal(player) {
   closeGameDescriptionModal();
   closeDifficultyModal();
+  closeSpecialSpawnModal();
   closePiecePoolModal();
   state.pieceEditorDraft = {
     mode: 'desired',
@@ -1709,6 +1727,7 @@ function openCustomPieceModal() {
   if (state.customShapes.length >= MAX_CUSTOM_PIECES) return;
   closeGameDescriptionModal();
   closeDifficultyModal();
+  closeSpecialSpawnModal();
   closePiecePoolModal();
   state.pieceEditorDraft = {
     mode: 'custom',
@@ -1728,6 +1747,7 @@ function closeDesiredPieceModal({ reopenPiecePool = false } = {}) {
 function openPiecePoolModal() {
   closeGameDescriptionModal();
   closeDifficultyModal();
+  closeSpecialSpawnModal();
   closeDesiredPieceModal();
   piecePoolModalEl.classList.remove('hidden');
   renderPiecePoolList();
@@ -1739,6 +1759,7 @@ function closePiecePoolModal() {
 
 function openGameDescriptionModal() {
   closeDifficultyModal();
+  closeSpecialSpawnModal();
   closeDesiredPieceModal();
   closePiecePoolModal();
   gameDescriptionModalEl.classList.remove('hidden');
@@ -1857,12 +1878,14 @@ function initDesiredPieces() {
 
 function startGameFlow() {
   commitPreparationDuration();
+  commitSpecialSpawnChance();
   endOverlayEl.classList.add('hidden');
   overlayEl.classList.add('hidden');
   closeGameDescriptionModal();
   closeDesiredPieceModal();
   closePiecePoolModal();
   closeDifficultyModal();
+  closeSpecialSpawnModal();
   closePauseMenu();
   hidePauseOverlay();
   resetState();
@@ -1891,6 +1914,7 @@ function returnToPreparation() {
   closeDesiredPieceModal();
   closePiecePoolModal();
   closeDifficultyModal();
+  closeSpecialSpawnModal();
   closePauseMenu();
   hidePauseOverlay();
   resetState();
@@ -1902,6 +1926,7 @@ function returnToPreparation() {
   renderDesiredPiecePreviews();
   renderSkillButtons();
   renderPreparationDuration();
+  renderSpecialSpawnChance();
   overlayEl.classList.remove('hidden');
   refreshLayoutMetrics();
   renderPauseButton();
@@ -1924,6 +1949,7 @@ function init() {
   renderPiecePoolList();
   renderPiecePoolButton();
   renderPreparationDuration();
+  renderSpecialSpawnChance();
   refreshLayoutMetrics();
   renderPauseButton();
 }
@@ -1939,6 +1965,7 @@ playerColorOptionEls.forEach((containerEl, player) => {
   });
 });
 piecePoolBtn.addEventListener('click', openPiecePoolModal);
+specialSpawnBtn.addEventListener('click', openSpecialSpawnModal);
 gameDescriptionBtn.addEventListener('click', openGameDescriptionModal);
 vsComputerBtn.addEventListener('click', toggleVsComputer);
 computerDifficultyBtn.addEventListener('click', openDifficultyModal);
@@ -1951,6 +1978,14 @@ prepTimeInputEl?.addEventListener('input', (event) => {
 prepTimeInputEl?.addEventListener('blur', () => {
   commitPreparationDuration();
 });
+specialSpawnInputEl?.addEventListener('input', (event) => {
+  const digitsOnly = event.target.value.replace(/[^\d]/g, '');
+  event.target.value = digitsOnly;
+  if (digitsOnly) previewSpecialSpawnChance(digitsOnly);
+});
+specialSpawnInputEl?.addEventListener('blur', () => {
+  commitSpecialSpawnChance();
+});
 skillBtnEls.forEach((btn, player) => {
   btn.addEventListener('click', () => activateDesiredSkill(player));
 });
@@ -1961,6 +1996,10 @@ desiredPieceCancelBtn.addEventListener('click', () => closeDesiredPieceModal({
 desiredPieceSaveBtn.addEventListener('click', saveDesiredDraft);
 piecePoolCloseBtn.addEventListener('click', closePiecePoolModal);
 difficultyCloseBtn.addEventListener('click', closeDifficultyModal);
+specialSpawnCloseBtn.addEventListener('click', () => {
+  commitSpecialSpawnChance();
+  closeSpecialSpawnModal();
+});
 gameDescriptionCloseBtn.addEventListener('click', closeGameDescriptionModal);
 pauseBtnEl.addEventListener('click', openPauseMenu);
 pauseMenuResumeBtn.addEventListener('click', resumePausedGame);
@@ -1972,6 +2011,12 @@ desiredPieceModalEl.addEventListener('click', (event) => {
 });
 difficultyModalEl.addEventListener('click', (event) => {
   if (event.target === difficultyModalEl) closeDifficultyModal();
+});
+specialSpawnModalEl.addEventListener('click', (event) => {
+  if (event.target === specialSpawnModalEl) {
+    commitSpecialSpawnChance();
+    closeSpecialSpawnModal();
+  }
 });
 piecePoolModalEl.addEventListener('click', (event) => {
   if (event.target === piecePoolModalEl) closePiecePoolModal();
@@ -2010,6 +2055,9 @@ document.addEventListener('keydown', (event) => {
     closeDesiredPieceModal({ reopenPiecePool: Boolean(state.pieceEditorDraft?.returnToPiecePool) });
   } else if (event.key === 'Escape' && !difficultyModalEl.classList.contains('hidden')) {
     closeDifficultyModal();
+  } else if (event.key === 'Escape' && !specialSpawnModalEl.classList.contains('hidden')) {
+    commitSpecialSpawnChance();
+    closeSpecialSpawnModal();
   } else if (event.key === 'Escape' && !piecePoolModalEl.classList.contains('hidden')) {
     closePiecePoolModal();
   } else if (event.key === 'Escape' && !gameDescriptionModalEl.classList.contains('hidden')) {
