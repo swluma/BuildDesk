@@ -15,6 +15,7 @@ const DEFAULT_DESIRED_SKILL_COST = 15;
 const DEFAULT_DESIRED_SKILL_COOLDOWN_MS = 15000;
 const MAX_CUSTOM_PIECES = 10;
 const COMPUTER_PLAYER = 0;
+const SETTINGS_STORAGE_KEY = 'blockblast_duel_settings_v1';
 
 const COMPUTER_DIFFICULTIES = {
   easy: {
@@ -625,6 +626,7 @@ function buildDifficultyList() {
         clearComputerMoveTimer();
         scheduleComputerMove();
       }
+      persistSettingsToStorage();
     });
 
     const titleEl = document.createElement('div');
@@ -947,6 +949,25 @@ function setSettingsTransferStatus(message, tone = 'neutral') {
   settingsTransferStatusEl.dataset.tone = tone;
 }
 
+function persistSettingsToStorage() {
+  try {
+    window.localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(getSettingsPayload()));
+  } catch {
+    // Ignore storage write failures and keep the in-memory settings usable.
+  }
+}
+
+function loadSettingsFromStorage() {
+  try {
+    const raw = window.localStorage.getItem(SETTINGS_STORAGE_KEY);
+    if (!raw) return false;
+    applySettingsPayload(JSON.parse(raw), { persist: false });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 function getSettingsPayload() {
   return {
     version: 1,
@@ -1021,7 +1042,7 @@ function getNormalizedAllowedShapeIds(rawAllowedIds, customShapes) {
   return new Set(firstShapeId ? [firstShapeId] : []);
 }
 
-function applySettingsPayload(payload) {
+function applySettingsPayload(payload, { persist = true } = {}) {
   if (!payload || typeof payload !== 'object') {
     throw new Error('Settings JSON must be an object.');
   }
@@ -1074,6 +1095,7 @@ function applySettingsPayload(payload) {
   renderRacks();
   renderBoard();
   refreshSettingsTransferExport();
+  if (persist) persistSettingsToStorage();
 }
 
 async function copySettingsJson() {
@@ -1134,6 +1156,7 @@ function loadSettingsJsonString(jsonText) {
 function setPreparationDuration(value) {
   state.prepDuration = clampPreparationDuration(value);
   renderPreparationDuration();
+  persistSettingsToStorage();
 }
 
 function previewPreparationDuration(value) {
@@ -1160,6 +1183,7 @@ function previewSpecialSpawnChance(value) {
   if (!Number.isFinite(parsed)) return;
   state.prepSpecialSpawnChance = Math.max(0, Math.min(1, parsed / 100));
   renderSpecialSpawnChance();
+  persistSettingsToStorage();
 }
 
 function commitSpecialSpawnChance() {
@@ -1177,6 +1201,7 @@ function previewDesiredSkillCost(value) {
   state.prepDesiredSkillCost = Math.max(0, Math.min(100, Math.floor(parsed)));
   renderDesiredSkillSettings();
   renderSkillButtons();
+  persistSettingsToStorage();
 }
 
 function commitDesiredSkillCost() {
@@ -1194,6 +1219,7 @@ function previewDesiredSkillCooldown(value) {
   state.prepDesiredSkillCooldownMs = Math.max(0, Math.min(100000, Math.floor(parsed) * 1000));
   renderDesiredSkillSettings();
   renderSkillButtons();
+  persistSettingsToStorage();
 }
 
 function commitDesiredSkillCooldown() {
@@ -1209,6 +1235,7 @@ function toggleDesiredSkillEnabled() {
   state.desiredSkillEnabled = !state.desiredSkillEnabled;
   renderDesiredSkillSettings();
   renderSkillButtons();
+  persistSettingsToStorage();
 }
 
 function sizeBoardToFit() {
@@ -2056,6 +2083,7 @@ function toggleVsComputer() {
   renderDesiredPiecePreviews();
   renderSkillButtons();
   renderRacks();
+  persistSettingsToStorage();
 }
 
 function openDifficultyModal() {
@@ -2268,6 +2296,7 @@ function toggleAllowedShape(shapeId) {
     state.allowedShapeIds.add(shapeId);
   }
   renderPiecePoolList();
+  persistSettingsToStorage();
 }
 
 function toggleDesiredDraftCell(x, y) {
@@ -2303,11 +2332,13 @@ function saveDesiredDraft() {
     state.allowedShapeIds.add(shapeId);
     renderPiecePoolList();
     closeDesiredPieceModal({ reopenPiecePool: true });
+    persistSettingsToStorage();
     return;
   }
   state.desiredPieces[state.pieceEditorDraft.player] = makeDesiredPiece(state.pieceEditorDraft.player, cells);
   renderDesiredPiecePreviews();
   closeDesiredPieceModal();
+  persistSettingsToStorage();
 }
 
 function setPlayerColorTheme(player, themeIndex) {
@@ -2331,6 +2362,7 @@ function setPlayerColorTheme(player, themeIndex) {
   renderDesiredPiecePreviews();
   renderRacks();
   renderBoard();
+  persistSettingsToStorage();
 }
 
 function setPlayerCustomColor(player, colorHex) {
@@ -2354,6 +2386,7 @@ function setPlayerCustomColor(player, colorHex) {
   renderDesiredPiecePreviews();
   renderRacks();
   renderBoard();
+  persistSettingsToStorage();
 }
 
 function setPlayerGlowLevel(player, rawValue) {
@@ -2376,6 +2409,7 @@ function setPlayerGlowLevel(player, rawValue) {
   renderDesiredPiecePreviews();
   renderRacks();
   renderBoard();
+  persistSettingsToStorage();
 }
 
 function replaceRemovedShapeInRacks(shapeId) {
@@ -2399,6 +2433,7 @@ function removeCustomShape(shapeId) {
   }
   replaceRemovedShapeInRacks(shapeId);
   renderPiecePoolList();
+  persistSettingsToStorage();
 }
 
 function activateDesiredSkill(player, { allowComputer = false } = {}) {
@@ -2489,6 +2524,7 @@ function init() {
   buildDifficultyList();
   initAllowedShapes();
   initDesiredPieces();
+  const loadedStoredSettings = loadSettingsFromStorage();
   resetState();
   renderBoard();
   renderRacks();
@@ -2501,6 +2537,7 @@ function init() {
   renderSpecialSpawnChance();
   renderDesiredSkillSettings();
   refreshSettingsTransferExport();
+  if (!loadedStoredSettings) persistSettingsToStorage();
   refreshLayoutMetrics();
   renderPauseButton();
 }
