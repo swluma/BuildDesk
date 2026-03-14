@@ -406,9 +406,7 @@ function getPlayerPreviewColor(player) {
 }
 
 function getPlayerDesiredColor(player) {
-  const customColor = state.playerCustomColors[player];
-  if (customColor) return buildColorGradient(customColor, { lift: 46, drop: -8 }) || customColor;
-  return getPlayerColorTheme(player).desiredColor || DESIRED_PREVIEW_COLORS[player] || getPlayerPreviewColor(player);
+  return getPlayerPreviewColor(player);
 }
 
 function getPieceGlowStyle(piece, { scale = 1 } = {}) {
