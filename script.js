@@ -227,6 +227,8 @@ const desiredPieceSaveBtn = document.getElementById('desired-piece-save');
 const piecePoolBtn = document.getElementById('piece-pool-btn');
 const piecePoolModalEl = document.getElementById('piece-pool-modal');
 const piecePoolSummaryEl = document.getElementById('piece-pool-summary');
+const toggleCommonPiecesBtn = document.getElementById('toggle-common-pieces-btn');
+const toggleCustomPiecesBtn = document.getElementById('toggle-custom-pieces-btn');
 const piecePoolListEl = document.getElementById('piece-pool-list');
 const customPieceBtn = document.getElementById('custom-piece-btn');
 const piecePoolCloseBtn = document.getElementById('piece-pool-close');
@@ -429,7 +431,8 @@ function getPieceGlowStyle(piece, { scale = 1 } = {}) {
 function makePiece(player = null) {
   const allShapes = getAllShapeDefs();
   const availableShapes = allShapes.filter((shape) => state.allowedShapeIds.has(shape.id));
-  const shape = randomItem(availableShapes.length > 0 ? availableShapes : allShapes);
+  if (availableShapes.length === 0) return null;
+  const shape = randomItem(availableShapes);
   return makePieceFromCells(shape.cells, {
     shapeId: shape.id,
     player,
@@ -499,6 +502,14 @@ function getComputerDifficultyConfig() {
 
 function getComputerDifficultyLabel() {
   return getComputerDifficultyConfig().label;
+}
+
+function getCommonShapeIds() {
+  return SHAPES.map((shape) => shape.id);
+}
+
+function getCustomShapeIds() {
+  return state.customShapes.map((shape) => shape.id);
 }
 
 function initAllowedShapes() {
@@ -815,6 +826,22 @@ function renderPiecePoolList() {
   piecePoolSummaryEl.textContent = `${enabledCount} of ${totalCount} enabled`;
   customPieceBtn.textContent = `Add Custom Piece (${state.customShapes.length}/${MAX_CUSTOM_PIECES})`;
   customPieceBtn.disabled = state.customShapes.length >= MAX_CUSTOM_PIECES;
+  const commonIds = getCommonShapeIds();
+  const customIds = getCustomShapeIds();
+  const commonEnabled = commonIds.filter((shapeId) => state.allowedShapeIds.has(shapeId)).length;
+  const customEnabled = customIds.filter((shapeId) => state.allowedShapeIds.has(shapeId)).length;
+  if (toggleCommonPiecesBtn) {
+    const allCommonEnabled = commonIds.length > 0 && commonEnabled === commonIds.length;
+    toggleCommonPiecesBtn.textContent = `Common Pieces: ${allCommonEnabled ? 'On' : 'Off'}`;
+    toggleCommonPiecesBtn.classList.toggle('active', allCommonEnabled);
+    toggleCommonPiecesBtn.disabled = commonIds.length === 0;
+  }
+  if (toggleCustomPiecesBtn) {
+    const allCustomEnabled = customIds.length > 0 && customEnabled === customIds.length;
+    toggleCustomPiecesBtn.textContent = `Custom Pieces: ${allCustomEnabled ? 'On' : 'Off'}`;
+    toggleCustomPiecesBtn.classList.toggle('active', allCustomEnabled);
+    toggleCustomPiecesBtn.disabled = customIds.length === 0;
+  }
   piecePoolListEl.scrollTop = scrollTop;
   renderPiecePoolButton();
 }
@@ -1097,9 +1124,7 @@ function getNormalizedAllowedShapeIds(rawAllowedIds, customShapes) {
   const normalized = Array.isArray(rawAllowedIds)
     ? rawAllowedIds.filter((shapeId) => typeof shapeId === 'string' && allShapeIds.has(shapeId))
     : [];
-  if (normalized.length > 0) return new Set(normalized);
-  const firstShapeId = SHAPES[0]?.id || customShapes[0]?.id;
-  return new Set(firstShapeId ? [firstShapeId] : []);
+  return new Set(normalized);
 }
 
 function applySettingsPayload(payload, { persist = true } = {}) {
@@ -2351,10 +2376,23 @@ function closeBlockStyleModal() {
 
 function toggleAllowedShape(shapeId) {
   if (state.allowedShapeIds.has(shapeId)) {
-    if (state.allowedShapeIds.size === 1) return;
     state.allowedShapeIds.delete(shapeId);
   } else {
     state.allowedShapeIds.add(shapeId);
+  }
+  renderPiecePoolList();
+  persistSettingsToStorage();
+}
+
+function toggleShapeGroup(shapeIds) {
+  const validShapeIds = shapeIds.filter((shapeId) => state.allowedShapeIds.has(shapeId) || getAllShapeDefs().some((shape) => shape.id === shapeId));
+  if (validShapeIds.length === 0) return;
+  const enabledCount = validShapeIds.filter((shapeId) => state.allowedShapeIds.has(shapeId)).length;
+  const shouldEnableAll = enabledCount !== validShapeIds.length;
+  if (shouldEnableAll) {
+    validShapeIds.forEach((shapeId) => state.allowedShapeIds.add(shapeId));
+  } else {
+    validShapeIds.forEach((shapeId) => state.allowedShapeIds.delete(shapeId));
   }
   renderPiecePoolList();
   persistSettingsToStorage();
@@ -2631,6 +2669,12 @@ gameDescriptionBtn.addEventListener('click', openGameDescriptionModal);
 vsComputerBtn.addEventListener('click', toggleVsComputer);
 computerDifficultyBtn.addEventListener('click', openDifficultyModal);
 customPieceBtn.addEventListener('click', openCustomPieceModal);
+toggleCommonPiecesBtn?.addEventListener('click', () => {
+  toggleShapeGroup(getCommonShapeIds());
+});
+toggleCustomPiecesBtn?.addEventListener('click', () => {
+  toggleShapeGroup(getCustomShapeIds());
+});
 prepTimeInputEl?.addEventListener('input', (event) => {
   const digitsOnly = event.target.value.replace(/[^\d]/g, '');
   event.target.value = digitsOnly;
