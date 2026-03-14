@@ -361,12 +361,13 @@ body {
 
 .board-cell.special-tile {
   background:
-    radial-gradient(circle at 50% 30%, rgba(255, 220, 124, 0.55), transparent 62%),
-    linear-gradient(180deg, #7c4b11, #4f2e09);
+    radial-gradient(circle at 50% 30%, rgba(255, 220, 124, 0.1), transparent 60%),
+    linear-gradient(180deg, rgba(124, 75, 17, 0.16), rgba(79, 46, 9, 0.1));
   box-shadow:
-    inset 0 0 0 1px rgba(255, 215, 111, 0.32),
-    inset 0 1px 0 rgba(255, 252, 233, 0.12),
-    0 0 14px rgba(255, 154, 43, 0.14);
+    inset 0 0 0 2px rgba(255, 215, 111, 0.62),
+    inset 0 0 0 4px rgba(255, 186, 77, 0.18),
+    inset 0 1px 0 rgba(255, 252, 233, 0.14),
+    0 0 8px rgba(255, 186, 77, 0.1);
 }
 
 .board-cell.special-tile.special-spawn {
