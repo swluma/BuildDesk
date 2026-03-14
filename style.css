@@ -65,6 +65,12 @@ body {
   padding: 0 4px;
 }
 
+.top-bar-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .brand {
   font-size: clamp(0.95rem, 2.8vw, 1.15rem);
   font-weight: 900;
@@ -92,6 +98,13 @@ body {
   font-weight: 900;
   min-width: 2.5ch;
   text-align: right;
+}
+
+.pause-btn {
+  width: auto;
+  margin: 0;
+  padding: 10px 14px;
+  white-space: nowrap;
 }
 
 .player-zone {
@@ -816,6 +829,27 @@ body {
 .countdown-card,
 .pause-card {
   width: min(100%, 300px);
+}
+
+.pause-menu-card {
+  width: min(100%, 340px);
+}
+
+.pause-menu-copy {
+  margin: 8px 0 0;
+  color: #d3e4ef;
+  line-height: 1.45;
+}
+
+.pause-menu-actions {
+  display: grid;
+  gap: 10px;
+  margin-top: 18px;
+}
+
+.pause-menu-actions .primary-btn,
+.pause-menu-actions .secondary-btn {
+  margin-top: 0;
 }
 
 .desired-piece-card {
@@ -1826,6 +1860,10 @@ body {
     min-height: 36px;
   }
 
+  .top-bar-controls {
+    gap: 6px;
+  }
+
   .player-zone {
     gap: 4px;
   }
@@ -1849,6 +1887,11 @@ body {
 @media (max-height: 700px) {
   .brand {
     font-size: clamp(0.86rem, 2.5vw, 1rem);
+  }
+
+  .pause-btn {
+    padding: 8px 12px;
+    font-size: 0.84rem;
   }
 
   .player-header {

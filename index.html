@@ -13,9 +13,12 @@
   <div id="app" class="app">
     <header class="top-bar">
       <div class="brand">BLOCK BLAST DUEL</div>
-      <div class="timer-wrap">
-        <span class="timer-label">TIME</span>
-        <span id="timer" class="timer">120</span>
+      <div class="top-bar-controls">
+        <div class="timer-wrap">
+          <span class="timer-label">TIME</span>
+          <span id="timer" class="timer">120</span>
+        </div>
+        <button id="pause-btn" class="secondary-btn pause-btn" type="button" aria-label="Pause game" hidden>Pause</button>
       </div>
     </header>
 
@@ -264,6 +267,23 @@
       <div id="pause-title" class="pause-title">STUCK!</div>
       <div id="pause-message" class="pause-message">Player 1 score reduced by 25%</div>
       <div id="pause-resume" class="pause-resume">3</div>
+    </div>
+  </div>
+
+  <div
+    id="pause-menu-overlay"
+    class="overlay hidden pause-menu-overlay"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="pause-menu-title"
+  >
+    <div class="overlay-card pause-menu-card">
+      <h2 id="pause-menu-title">GAME PAUSED</h2>
+      <p class="pause-menu-copy">Resume when you're ready, or quit this round and return to setup.</p>
+      <div class="pause-menu-actions">
+        <button id="pause-menu-resume" class="primary-btn" type="button">Resume</button>
+        <button id="pause-menu-quit" class="secondary-btn" type="button">Quit</button>
+      </div>
     </div>
   </div>
 

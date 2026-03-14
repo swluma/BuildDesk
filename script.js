@@ -135,6 +135,7 @@ const boardEffectLayerEl = document.getElementById('board-effect-layer');
 const rackEls = [document.getElementById('rack-0'), document.getElementById('rack-1')];
 const scoreEls = [document.getElementById('score-0'), document.getElementById('score-1')];
 const timerEl = document.getElementById('timer');
+const pauseBtnEl = document.getElementById('pause-btn');
 const overlayEl = document.getElementById('overlay');
 const countdownOverlayEl = document.getElementById('countdown-overlay');
 const countdownTitleEl = document.getElementById('countdown-title');
@@ -142,6 +143,9 @@ const countdownNumberEl = document.getElementById('countdown-number');
 const pauseOverlayEl = document.getElementById('pause-overlay');
 const pauseMessageEl = document.getElementById('pause-message');
 const pauseResumeEl = document.getElementById('pause-resume');
+const pauseMenuOverlayEl = document.getElementById('pause-menu-overlay');
+const pauseMenuResumeBtn = document.getElementById('pause-menu-resume');
+const pauseMenuQuitBtn = document.getElementById('pause-menu-quit');
 const endOverlayEl = document.getElementById('end-overlay');
 const endSummaryEl = document.getElementById('end-summary');
 const endTitleEl = document.getElementById('end-title');
@@ -211,6 +215,8 @@ const state = {
   desiredGridCells: [],
   playerColorThemeIndexes: [0, 1],
   gameActive: false,
+  matchInProgress: false,
+  manualPauseActive: false,
   timeLeft: DEFAULT_GAME_DURATION,
   prepDuration: DEFAULT_GAME_DURATION,
   timerHandle: null,
@@ -316,8 +322,8 @@ function resetState() {
   state.specialTiles = new Set();
   state.timeLeft = state.prepDuration;
   state.gameActive = false;
-  state.activeDrags.forEach(cancelDragVisuals);
-  state.activeDrags.clear();
+  state.manualPauseActive = false;
+  clearActiveDrags();
   if (state.timerHandle) clearInterval(state.timerHandle);
   if (state.pauseHandle) clearInterval(state.pauseHandle);
   if (state.skillUiHandle) clearInterval(state.skillUiHandle);
@@ -332,6 +338,7 @@ function resetState() {
   scorePopupLayerEl.innerHTML = '';
   updateTimer();
   updateScores();
+  renderPauseButton();
 }
 
 function isComputerPlayer(player) {
@@ -715,6 +722,13 @@ function updateScores() {
   renderSkillButtons();
 }
 
+function renderPauseButton() {
+  const autoPauseVisible = !pauseOverlayEl.classList.contains('hidden');
+  const countdownVisible = !countdownOverlayEl.classList.contains('hidden');
+  pauseBtnEl.hidden = !state.matchInProgress;
+  pauseBtnEl.disabled = !state.gameActive || state.manualPauseActive || autoPauseVisible || countdownVisible;
+}
+
 function updateTimer() {
   timerEl.textContent = String(Math.max(0, Math.ceil(state.timeLeft)));
 }
@@ -905,6 +919,16 @@ function onPointerUp(event) {
     window.removeEventListener('pointercancel', onPointerUp);
     clearGhostMarks();
   }
+}
+
+function clearActiveDrags() {
+  if (!state.activeDrags.size) return;
+  state.activeDrags.forEach(cancelDragVisuals);
+  state.activeDrags.clear();
+  window.removeEventListener('pointermove', onPointerMove);
+  window.removeEventListener('pointerup', onPointerUp);
+  window.removeEventListener('pointercancel', onPointerUp);
+  clearGhostMarks();
 }
 
 function cancelDragVisuals(drag) {
@@ -1466,10 +1490,48 @@ function showPauseOverlay(message) {
   pauseMessageEl.textContent = message;
   pauseResumeEl.textContent = String(RESUME_COUNTDOWN);
   pauseOverlayEl.classList.remove('hidden');
+  renderPauseButton();
 }
 
 function hidePauseOverlay() {
   pauseOverlayEl.classList.add('hidden');
+  renderPauseButton();
+}
+
+function openPauseMenu() {
+  if (!state.gameActive) return;
+  state.gameActive = false;
+  state.manualPauseActive = true;
+  clearComputerMoveTimer();
+  clearActiveDrags();
+  pauseMenuOverlayEl.classList.remove('hidden');
+  renderSkillButtons();
+  renderPauseButton();
+}
+
+function closePauseMenu() {
+  pauseMenuOverlayEl.classList.add('hidden');
+}
+
+function resumePausedGame() {
+  if (!state.manualPauseActive) return;
+  closePauseMenu();
+  renderPauseButton();
+  startVisibleCountdown('RESUME', RESUME_COUNTDOWN, () => {
+    state.manualPauseActive = false;
+    state.gameActive = true;
+    renderSkillButtons();
+    renderPauseButton();
+    scheduleComputerMove();
+  });
+}
+
+function quitPausedGame() {
+  if (!state.manualPauseActive) return;
+  const shouldQuit = window.confirm('Quit the current game and return to the setup screen?');
+  if (!shouldQuit) return;
+  closePauseMenu();
+  returnToPreparation();
 }
 
 function clearBoardAndRefreshPieces() {
@@ -1509,6 +1571,7 @@ function startVisibleCountdown(title, from, onDone) {
   countdownTitleEl.textContent = title;
   countdownNumberEl.textContent = String(from);
   countdownOverlayEl.classList.remove('hidden');
+  renderPauseButton();
   let current = from;
   const handle = setInterval(() => {
     current -= 1;
@@ -1520,6 +1583,7 @@ function startVisibleCountdown(title, from, onDone) {
     countdownNumberEl.textContent = 'GO';
     setTimeout(() => {
       countdownOverlayEl.classList.add('hidden');
+      renderPauseButton();
       onDone?.();
     }, 400);
   }, 1000);
@@ -1537,12 +1601,17 @@ function startTimerLoop() {
 
 function endGame() {
   state.gameActive = false;
+  state.matchInProgress = false;
+  state.manualPauseActive = false;
   clearComputerMoveTimer();
   if (state.timerHandle) clearInterval(state.timerHandle);
   if (state.skillUiHandle) clearInterval(state.skillUiHandle);
   state.timerHandle = null;
   state.skillUiHandle = null;
+  closePauseMenu();
+  hidePauseOverlay();
   renderSkillButtons();
+  renderPauseButton();
   const [a, b] = state.scores;
   let title = 'DRAW';
   if (a > b) title = `${getPlayerDisplayName(0)} WINS`;
@@ -1792,8 +1861,11 @@ function startGameFlow() {
   closeDesiredPieceModal();
   closePiecePoolModal();
   closeDifficultyModal();
+  closePauseMenu();
   hidePauseOverlay();
   resetState();
+  state.matchInProgress = true;
+  renderPauseButton();
   fillAllRacks();
   renderBoard();
   renderRacks();
@@ -1805,6 +1877,7 @@ function startGameFlow() {
     state.gameActive = true;
     startSkillUiLoop();
     renderSkillButtons();
+    renderPauseButton();
     startTimerLoop();
     scheduleComputerMove();
   });
@@ -1816,7 +1889,10 @@ function returnToPreparation() {
   closeDesiredPieceModal();
   closePiecePoolModal();
   closeDifficultyModal();
+  closePauseMenu();
+  hidePauseOverlay();
   resetState();
+  state.matchInProgress = false;
   renderBoard();
   renderRacks();
   renderSpecialSlot();
@@ -1826,6 +1902,7 @@ function returnToPreparation() {
   renderPreparationDuration();
   overlayEl.classList.remove('hidden');
   refreshLayoutMetrics();
+  renderPauseButton();
 }
 
 function init() {
@@ -1846,6 +1923,7 @@ function init() {
   renderPiecePoolButton();
   renderPreparationDuration();
   refreshLayoutMetrics();
+  renderPauseButton();
 }
 
 desiredPieceBtnEls.forEach((btn, player) => {
@@ -1882,6 +1960,9 @@ desiredPieceSaveBtn.addEventListener('click', saveDesiredDraft);
 piecePoolCloseBtn.addEventListener('click', closePiecePoolModal);
 difficultyCloseBtn.addEventListener('click', closeDifficultyModal);
 gameDescriptionCloseBtn.addEventListener('click', closeGameDescriptionModal);
+pauseBtnEl.addEventListener('click', openPauseMenu);
+pauseMenuResumeBtn.addEventListener('click', resumePausedGame);
+pauseMenuQuitBtn.addEventListener('click', quitPausedGame);
 desiredPieceModalEl.addEventListener('click', (event) => {
   if (event.target === desiredPieceModalEl) {
     closeDesiredPieceModal({ reopenPiecePool: Boolean(state.pieceEditorDraft?.returnToPiecePool) });
@@ -1931,6 +2012,8 @@ document.addEventListener('keydown', (event) => {
     closePiecePoolModal();
   } else if (event.key === 'Escape' && !gameDescriptionModalEl.classList.contains('hidden')) {
     closeGameDescriptionModal();
+  } else if (event.key === 'Escape' && state.gameActive) {
+    openPauseMenu();
   }
 });
 
