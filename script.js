@@ -71,36 +71,42 @@ const PLAYER_COLOR_THEMES = [
     label: 'Red',
     previewColor: 'linear-gradient(180deg, #ff8a9a 0%, #e13b55 100%)',
     desiredColor: 'linear-gradient(180deg, #ffb1bb 0%, #f04f68 100%)',
+    glowColor: '255, 79, 116',
   },
   {
     id: 'blue',
     label: 'Blue',
     previewColor: 'linear-gradient(180deg, #7fc4ff 0%, #2f74e8 100%)',
     desiredColor: 'linear-gradient(180deg, #a2d6ff 0%, #478cff 100%)',
+    glowColor: '71, 140, 255',
   },
   {
     id: 'gold',
     label: 'Gold',
     previewColor: 'linear-gradient(180deg, #ffe48b 0%, #de9b23 100%)',
     desiredColor: 'linear-gradient(180deg, #ffefb2 0%, #f1b545 100%)',
+    glowColor: '241, 181, 69',
   },
   {
     id: 'mint',
     label: 'Mint',
     previewColor: 'linear-gradient(180deg, #9ff8ce 0%, #24b276 100%)',
     desiredColor: 'linear-gradient(180deg, #c6ffe2 0%, #49ca93 100%)',
+    glowColor: '73, 202, 147',
   },
   {
     id: 'violet',
     label: 'Violet',
     previewColor: 'linear-gradient(180deg, #c1a5ff 0%, #7548e3 100%)',
     desiredColor: 'linear-gradient(180deg, #dbc8ff 0%, #9168f3 100%)',
+    glowColor: '145, 104, 243',
   },
   {
     id: 'coral',
     label: 'Coral',
     previewColor: 'linear-gradient(180deg, #ffb091 0%, #ea6133 100%)',
     desiredColor: 'linear-gradient(180deg, #ffc8b2 0%, #ff7a4f 100%)',
+    glowColor: '255, 122, 79',
   },
 ];
 
@@ -173,9 +179,9 @@ const desiredPieceBtnEls = [
   document.getElementById('desired-piece-btn-0'),
   document.getElementById('desired-piece-btn-1'),
 ];
-const playerColorOptionEls = [
-  document.getElementById('player-color-options-0'),
-  document.getElementById('player-color-options-1'),
+const blockStyleBtnEls = [
+  document.getElementById('block-style-btn-0'),
+  document.getElementById('block-style-btn-1'),
 ];
 const prepPlayerLabelEls = [
   document.getElementById('prep-player-label-0'),
@@ -185,6 +191,14 @@ const desiredPiecePreviewEls = [
   document.getElementById('desired-piece-preview-0'),
   document.getElementById('desired-piece-preview-1'),
 ];
+const blockStyleModalEl = document.getElementById('block-style-modal');
+const blockStyleModalTitleEl = document.getElementById('block-style-modal-title');
+const blockStyleModalCopyEl = document.getElementById('block-style-modal-copy');
+const blockStylePreviewEl = document.getElementById('block-style-preview');
+const blockStyleGlowValueEl = document.getElementById('block-style-glow-value');
+const blockStyleColorOptionsEl = document.getElementById('block-style-color-options');
+const blockStyleGlowInputEl = document.getElementById('block-style-glow-input');
+const blockStyleCloseBtn = document.getElementById('block-style-close');
 const desiredPieceModalEl = document.getElementById('desired-piece-modal');
 const desiredPieceModalTitleEl = document.getElementById('desired-piece-modal-title');
 const desiredPieceModalCopyEl = document.getElementById('desired-piece-modal-copy');
@@ -223,6 +237,8 @@ const state = {
   pieceEditorDraft: null,
   desiredGridCells: [],
   playerColorThemeIndexes: [0, 1],
+  playerGlowLevels: [0.55, 0.55],
+  blockStyleModalPlayer: null,
   gameActive: false,
   matchInProgress: false,
   manualPauseActive: false,
@@ -277,6 +293,15 @@ function getPlayerColorTheme(player) {
   return PLAYER_COLOR_THEMES[selectedIndex] || PLAYER_COLOR_THEMES[player] || PLAYER_COLOR_THEMES[0];
 }
 
+function getPlayerGlowLevel(player) {
+  const rawLevel = state.playerGlowLevels[player];
+  return Number.isFinite(rawLevel) ? Math.max(0, Math.min(1, rawLevel)) : 0.55;
+}
+
+function getPlayerGlowColor(player) {
+  return getPlayerColorTheme(player).glowColor || '255, 255, 255';
+}
+
 function editorCoordsToCells(cellKeys) {
   return Array.from(cellKeys, (key) => key.split(',').map(Number));
 }
@@ -285,15 +310,21 @@ function makePieceFromCells(cells, {
   shapeId = 'custom',
   previewColor = null,
   idPrefix = null,
+  player = null,
+  glowColor = null,
+  glowStrength = 0.55,
 } = {}) {
   const dims = dimsForCells(cloneCells(cells));
   return {
     id: `${idPrefix || 'N'}-${Math.random().toString(36).slice(2, 10)}`,
     shapeId,
+    player,
     cells: dims.cells,
     width: dims.width,
     height: dims.height,
     previewColor: previewColor || randomItem(COLORS),
+    glowColor,
+    glowStrength,
   };
 }
 
@@ -305,13 +336,32 @@ function getPlayerDesiredColor(player) {
   return getPlayerColorTheme(player).desiredColor || DESIRED_PREVIEW_COLORS[player] || getPlayerPreviewColor(player);
 }
 
+function getPieceGlowStyle(piece, { scale = 1 } = {}) {
+  if (!piece?.glowColor) return '';
+  const glowStrength = Math.max(0, Math.min(1, Number(piece.glowStrength) || 0));
+  if (glowStrength <= 0) return '';
+  const blur = Math.round((10 + glowStrength * 20) * scale);
+  const spread = Math.round((1 + glowStrength * 4) * scale);
+  const outerAlpha = (0.12 + glowStrength * 0.36).toFixed(2);
+  const innerAlpha = (0.08 + glowStrength * 0.18).toFixed(2);
+  return [
+    `inset 0 -2px 0 rgba(0, 0, 0, 0.22)`,
+    `inset 0 1px 0 rgba(255, 255, 255, 0.16)`,
+    `0 0 ${blur}px ${spread}px rgba(${piece.glowColor}, ${outerAlpha})`,
+    `0 0 ${Math.round(blur * 0.55)}px rgba(${piece.glowColor}, ${innerAlpha})`,
+  ].join(', ');
+}
+
 function makePiece(player = null) {
   const allShapes = getAllShapeDefs();
   const availableShapes = allShapes.filter((shape) => state.allowedShapeIds.has(shape.id));
   const shape = randomItem(availableShapes.length > 0 ? availableShapes : allShapes);
   return makePieceFromCells(shape.cells, {
     shapeId: shape.id,
+    player,
     previewColor: player === null ? randomItem(COLORS) : getPlayerPreviewColor(player),
+    glowColor: player === null ? null : getPlayerGlowColor(player),
+    glowStrength: player === null ? 0.35 : getPlayerGlowLevel(player),
   });
 }
 
@@ -319,7 +369,10 @@ function makeDesiredPiece(player, cells = defaultDesiredCells()) {
   return makePieceFromCells(cells, {
     shapeId: `desired-${player}`,
     idPrefix: `D${player}`,
+    player,
     previewColor: getPlayerDesiredColor(player),
+    glowColor: getPlayerGlowColor(player),
+    glowStrength: getPlayerGlowLevel(player),
   });
 }
 
@@ -570,6 +623,8 @@ function renderMiniPiece(targetEl, piece, slotSize, { forceEnabled = false } = {
     cell.style.background = color;
     if (disabled) {
       cell.style.boxShadow = 'inset 0 -2px 0 rgba(0,0,0,0.2), inset 0 1px 0 rgba(255,255,255,0.12), 0 0 0 1px rgba(255,255,255,0.08)';
+    } else {
+      cell.style.boxShadow = getPieceGlowStyle(piece, { scale: cellSize / 28 });
     }
     pieceEl.appendChild(cell);
   });
@@ -584,33 +639,53 @@ function renderDesiredPiecePreviews() {
   });
 }
 
-function buildPlayerColorOptions() {
-  playerColorOptionEls.forEach((containerEl, player) => {
-    if (!containerEl) return;
-    containerEl.innerHTML = '';
-    PLAYER_COLOR_THEMES.forEach((theme, index) => {
-      const optionEl = document.createElement('button');
-      optionEl.type = 'button';
-      optionEl.className = 'player-color-option';
-      optionEl.dataset.player = String(player);
-      optionEl.dataset.themeIndex = String(index);
-      optionEl.setAttribute('aria-label', `${getPlayerDisplayName(player)} color ${theme.label}`);
-      optionEl.setAttribute('title', theme.label);
-      optionEl.style.setProperty('--swatch', theme.previewColor);
-      containerEl.appendChild(optionEl);
-    });
+function buildBlockStyleOptions() {
+  if (!blockStyleColorOptionsEl) return;
+  blockStyleColorOptionsEl.innerHTML = '';
+  PLAYER_COLOR_THEMES.forEach((theme, index) => {
+    const optionEl = document.createElement('button');
+    optionEl.type = 'button';
+    optionEl.className = 'player-color-option';
+    optionEl.dataset.themeIndex = String(index);
+    optionEl.setAttribute('aria-label', `piece color ${theme.label}`);
+    optionEl.setAttribute('title', theme.label);
+    optionEl.style.setProperty('--swatch', theme.previewColor);
+    blockStyleColorOptionsEl.appendChild(optionEl);
   });
 }
 
-function renderPlayerColorOptions() {
-  playerColorOptionEls.forEach((containerEl, player) => {
-    if (!containerEl) return;
-    Array.from(containerEl.children).forEach((optionEl, index) => {
+function renderBlockStyleButtons() {
+  blockStyleBtnEls.forEach((btn, player) => {
+    if (!btn) return;
+    const theme = getPlayerColorTheme(player);
+    btn.textContent = `Block Style · ${theme.label} · Glow ${Math.round(getPlayerGlowLevel(player) * 100)}%`;
+  });
+}
+
+function renderBlockStyleModal() {
+  const player = state.blockStyleModalPlayer;
+  if (player === null || player === undefined) return;
+  const playerName = getPlayerDisplayName(player);
+  const glowPercent = Math.round(getPlayerGlowLevel(player) * 100);
+  if (blockStyleModalTitleEl) blockStyleModalTitleEl.textContent = `${playerName.toUpperCase()} BLOCK STYLE`;
+  if (blockStyleModalCopyEl) blockStyleModalCopyEl.textContent = `Choose the color theme and glow strength for ${playerName.toLowerCase()}'s blocks.`;
+  if (blockStyleGlowInputEl) blockStyleGlowInputEl.value = String(glowPercent);
+  if (blockStyleGlowValueEl) blockStyleGlowValueEl.textContent = `Glow ${glowPercent}%`;
+  if (blockStyleColorOptionsEl) {
+    Array.from(blockStyleColorOptionsEl.children).forEach((optionEl, index) => {
       const selected = index === state.playerColorThemeIndexes[player];
       optionEl.classList.toggle('active', selected);
       optionEl.setAttribute('aria-pressed', String(selected));
+      optionEl.setAttribute('aria-label', `${playerName} color ${PLAYER_COLOR_THEMES[index].label}`);
     });
-  });
+  }
+  renderMiniPiece(blockStylePreviewEl, makePieceFromCells([[0, 0], [1, 0], [0, 1], [1, 1]], {
+    shapeId: `preview-${player}`,
+    player,
+    previewColor: getPlayerPreviewColor(player),
+    glowColor: getPlayerGlowColor(player),
+    glowStrength: getPlayerGlowLevel(player),
+  }), getRenderSlotSize(blockStylePreviewEl, 96), { forceEnabled: true });
 }
 
 function renderPiecePoolButton() {
@@ -632,7 +707,8 @@ function renderModeUi() {
   computerDifficultyBtn.textContent = `Difficulty: ${getComputerDifficultyLabel()}`;
   vsComputerBtn.textContent = `VS Computer: ${state.vsComputer ? 'On' : 'Off'}`;
   vsComputerBtn.classList.toggle('active', state.vsComputer);
-  renderPlayerColorOptions();
+  renderBlockStyleButtons();
+  renderBlockStyleModal();
 }
 
 function renderPiecePoolList() {
@@ -718,6 +794,7 @@ function renderBoard() {
         fill.className = 'board-cell-fill';
         if (state.specialTiles.has(`${x},${y}`)) fill.classList.add('on-special-tile');
         fill.style.background = cellState.previewColor;
+        fill.style.boxShadow = getPieceGlowStyle(cellState, { scale: 0.8 });
         cellEl.appendChild(fill);
       }
     }
@@ -930,6 +1007,7 @@ function createDragElement(piece, cellSize) {
     cell.style.left = `${x * cellSize + 1}px`;
     cell.style.top = `${y * cellSize + 1}px`;
     cell.style.background = piece.previewColor;
+    cell.style.boxShadow = getPieceGlowStyle(piece, { scale: cellSize / 28 });
     dragEl.appendChild(cell);
   });
 
@@ -1085,7 +1163,12 @@ function isPieceDisabled(piece) {
 
 function putPieceOnBoard(piece, x, y) {
   piece.cells.forEach(([dx, dy]) => {
-    state.board[y + dy][x + dx] = { previewColor: piece.previewColor };
+    state.board[y + dy][x + dx] = {
+      player: piece.player,
+      previewColor: piece.previewColor,
+      glowColor: piece.glowColor,
+      glowStrength: piece.glowStrength,
+    };
   });
 }
 
@@ -1216,7 +1299,12 @@ function evaluatePlacement(piece, x, y, {
 } = {}) {
   const simulatedBoard = cloneBoard();
   piece.cells.forEach(([dx, dy]) => {
-    simulatedBoard[y + dy][x + dx] = { previewColor: piece.previewColor };
+    simulatedBoard[y + dy][x + dx] = {
+      player: piece.player,
+      previewColor: piece.previewColor,
+      glowColor: piece.glowColor,
+      glowStrength: piece.glowStrength,
+    };
   });
 
   const clearInfo = getClearInfoForBoard(simulatedBoard);
@@ -1710,6 +1798,7 @@ function toggleVsComputer() {
 
 function openDifficultyModal() {
   if (!state.vsComputer) return;
+  closeBlockStyleModal();
   closeGameDescriptionModal();
   closeDesiredPieceModal();
   closePiecePoolModal();
@@ -1724,6 +1813,7 @@ function closeDifficultyModal() {
 }
 
 function openSpecialSpawnModal() {
+  closeBlockStyleModal();
   closeGameDescriptionModal();
   closeDesiredPieceModal();
   closePiecePoolModal();
@@ -1738,6 +1828,7 @@ function closeSpecialSpawnModal() {
 }
 
 function openDesiredSkillSettingsModal() {
+  closeBlockStyleModal();
   closeGameDescriptionModal();
   closeDesiredPieceModal();
   closePiecePoolModal();
@@ -1796,6 +1887,7 @@ function updateDesiredPieceModal() {
 }
 
 function openDesiredPieceModal(player) {
+  closeBlockStyleModal();
   closeGameDescriptionModal();
   closeDifficultyModal();
   closeSpecialSpawnModal();
@@ -1812,6 +1904,7 @@ function openDesiredPieceModal(player) {
 
 function openCustomPieceModal() {
   if (state.customShapes.length >= MAX_CUSTOM_PIECES) return;
+  closeBlockStyleModal();
   closeGameDescriptionModal();
   closeDifficultyModal();
   closeSpecialSpawnModal();
@@ -1833,6 +1926,7 @@ function closeDesiredPieceModal({ reopenPiecePool = false } = {}) {
 }
 
 function openPiecePoolModal() {
+  closeBlockStyleModal();
   closeGameDescriptionModal();
   closeDifficultyModal();
   closeSpecialSpawnModal();
@@ -1847,6 +1941,7 @@ function closePiecePoolModal() {
 }
 
 function openGameDescriptionModal() {
+  closeBlockStyleModal();
   closeDifficultyModal();
   closeSpecialSpawnModal();
   closeDesiredSkillSettingsModal();
@@ -1857,6 +1952,23 @@ function openGameDescriptionModal() {
 
 function closeGameDescriptionModal() {
   gameDescriptionModalEl.classList.add('hidden');
+}
+
+function openBlockStyleModal(player) {
+  closeGameDescriptionModal();
+  closeDesiredPieceModal();
+  closePiecePoolModal();
+  closeDifficultyModal();
+  closeSpecialSpawnModal();
+  closeDesiredSkillSettingsModal();
+  state.blockStyleModalPlayer = player;
+  blockStyleModalEl.classList.remove('hidden');
+  renderBlockStyleModal();
+}
+
+function closeBlockStyleModal() {
+  state.blockStyleModalPlayer = null;
+  blockStyleModalEl.classList.add('hidden');
 }
 
 function toggleAllowedShape(shapeId) {
@@ -1919,7 +2031,32 @@ function setPlayerColorTheme(player, themeIndex) {
     if (piece.shapeId === `desired-${player}`) return makeDesiredRackPiece(player);
     return {
       ...piece,
+      player,
       previewColor: getPlayerPreviewColor(player),
+      glowColor: getPlayerGlowColor(player),
+      glowStrength: getPlayerGlowLevel(player),
+    };
+  });
+  renderModeUi();
+  renderDesiredPiecePreviews();
+  renderRacks();
+  renderBoard();
+}
+
+function setPlayerGlowLevel(player, rawValue) {
+  const parsed = Number(rawValue);
+  if (!Number.isFinite(parsed)) return;
+  state.playerGlowLevels[player] = Math.max(0, Math.min(1, parsed));
+  state.desiredPieces[player] = makeDesiredPiece(player, state.desiredPieces[player].cells);
+  state.racks[player] = state.racks[player].map((piece) => {
+    if (!piece) return piece;
+    if (piece.shapeId === `desired-${player}`) return makeDesiredRackPiece(player);
+    return {
+      ...piece,
+      player,
+      previewColor: getPlayerPreviewColor(player),
+      glowColor: getPlayerGlowColor(player),
+      glowStrength: getPlayerGlowLevel(player),
     };
   });
   renderModeUi();
@@ -1979,6 +2116,7 @@ function startGameFlow() {
   closeDifficultyModal();
   closeSpecialSpawnModal();
   closeDesiredSkillSettingsModal();
+  closeBlockStyleModal();
   closePauseMenu();
   hidePauseOverlay();
   resetState();
@@ -2009,6 +2147,7 @@ function returnToPreparation() {
   closeDifficultyModal();
   closeSpecialSpawnModal();
   closeDesiredSkillSettingsModal();
+  closeBlockStyleModal();
   closePauseMenu();
   hidePauseOverlay();
   resetState();
@@ -2031,7 +2170,7 @@ function init() {
   buildBoard();
   buildRacks();
   buildDesiredPieceGrid();
-  buildPlayerColorOptions();
+  buildBlockStyleOptions();
   buildDifficultyList();
   initAllowedShapes();
   initDesiredPieces();
@@ -2053,12 +2192,17 @@ function init() {
 desiredPieceBtnEls.forEach((btn, player) => {
   btn.addEventListener('click', () => openDesiredPieceModal(player));
 });
-playerColorOptionEls.forEach((containerEl, player) => {
-  containerEl?.addEventListener('click', (event) => {
-    const optionEl = event.target.closest('.player-color-option');
-    if (!optionEl) return;
-    setPlayerColorTheme(player, Number(optionEl.dataset.themeIndex));
-  });
+blockStyleBtnEls.forEach((btn, player) => {
+  btn?.addEventListener('click', () => openBlockStyleModal(player));
+});
+blockStyleColorOptionsEl?.addEventListener('click', (event) => {
+  const optionEl = event.target.closest('.player-color-option');
+  if (!optionEl || state.blockStyleModalPlayer === null) return;
+  setPlayerColorTheme(state.blockStyleModalPlayer, Number(optionEl.dataset.themeIndex));
+});
+blockStyleGlowInputEl?.addEventListener('input', (event) => {
+  if (state.blockStyleModalPlayer === null) return;
+  setPlayerGlowLevel(state.blockStyleModalPlayer, Number(event.target.value) / 100);
 });
 piecePoolBtn.addEventListener('click', openPiecePoolModal);
 specialSpawnBtn.addEventListener('click', openSpecialSpawnModal);
@@ -2110,6 +2254,7 @@ desiredPieceCancelBtn.addEventListener('click', () => closeDesiredPieceModal({
 desiredPieceSaveBtn.addEventListener('click', saveDesiredDraft);
 piecePoolCloseBtn.addEventListener('click', closePiecePoolModal);
 difficultyCloseBtn.addEventListener('click', closeDifficultyModal);
+blockStyleCloseBtn.addEventListener('click', closeBlockStyleModal);
 specialSpawnCloseBtn.addEventListener('click', () => {
   commitSpecialSpawnChance();
   closeSpecialSpawnModal();
@@ -2127,6 +2272,9 @@ desiredPieceModalEl.addEventListener('click', (event) => {
   if (event.target === desiredPieceModalEl) {
     closeDesiredPieceModal({ reopenPiecePool: Boolean(state.pieceEditorDraft?.returnToPiecePool) });
   }
+});
+blockStyleModalEl.addEventListener('click', (event) => {
+  if (event.target === blockStyleModalEl) closeBlockStyleModal();
 });
 difficultyModalEl.addEventListener('click', (event) => {
   if (event.target === difficultyModalEl) closeDifficultyModal();
@@ -2157,6 +2305,7 @@ window.addEventListener('resize', () => {
   renderRacks();
   renderSpecialSlot();
   renderDesiredPiecePreviews();
+  if (!blockStyleModalEl.classList.contains('hidden')) renderBlockStyleModal();
   if (state.pieceEditorDraft) updateDesiredPieceModal();
   if (!piecePoolModalEl.classList.contains('hidden')) renderPiecePoolList();
 });
@@ -2179,6 +2328,8 @@ function hasScrollableParent(target) {
 document.addEventListener('keydown', (event) => {
   if (event.key === 'Escape' && !desiredPieceModalEl.classList.contains('hidden')) {
     closeDesiredPieceModal({ reopenPiecePool: Boolean(state.pieceEditorDraft?.returnToPiecePool) });
+  } else if (event.key === 'Escape' && !blockStyleModalEl.classList.contains('hidden')) {
+    closeBlockStyleModal();
   } else if (event.key === 'Escape' && !difficultyModalEl.classList.contains('hidden')) {
     closeDifficultyModal();
   } else if (event.key === 'Escape' && !specialSpawnModalEl.classList.contains('hidden')) {

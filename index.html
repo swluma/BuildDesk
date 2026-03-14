@@ -70,15 +70,12 @@
         <div class="prep-player-card">
           <div class="prep-player-meta">
             <div id="prep-player-label-0" class="prep-player-label">PLAYER 1</div>
-            <div class="prep-color-group">
-              <div class="prep-color-label">Piece Color</div>
-              <div
-                id="player-color-options-0"
-                class="player-color-options"
-                role="group"
-                aria-label="player 1 piece color"
-              ></div>
-            </div>
+            <button
+              id="block-style-btn-0"
+              class="secondary-btn block-style-btn"
+              type="button"
+              data-player="0"
+            >Block Style</button>
             <button
               id="desired-piece-btn-0"
               class="secondary-btn desired-piece-btn"
@@ -105,15 +102,12 @@
         <div class="prep-player-card">
           <div class="prep-player-meta">
             <div id="prep-player-label-1" class="prep-player-label">PLAYER 2</div>
-            <div class="prep-color-group">
-              <div class="prep-color-label">Piece Color</div>
-              <div
-                id="player-color-options-1"
-                class="player-color-options"
-                role="group"
-                aria-label="player 2 piece color"
-              ></div>
-            </div>
+            <button
+              id="block-style-btn-1"
+              class="secondary-btn block-style-btn"
+              type="button"
+              data-player="1"
+            >Block Style</button>
             <button
               id="desired-piece-btn-1"
               class="secondary-btn desired-piece-btn"
@@ -298,6 +292,50 @@
       <h2 id="end-title">GAME OVER</h2>
       <div id="end-summary" class="end-summary"></div>
       <button id="restart-btn" class="primary-btn">Play Again</button>
+    </div>
+  </div>
+
+  <div
+    id="block-style-modal"
+    class="overlay hidden block-style-modal"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="block-style-modal-title"
+  >
+    <div class="overlay-card block-style-card">
+      <h2 id="block-style-modal-title">BLOCK STYLE</h2>
+      <p id="block-style-modal-copy" class="block-style-copy">Choose a color theme and glow strength for this player's blocks.</p>
+      <div class="block-style-preview-panel">
+        <div class="block-style-preview-copy">
+          <div class="block-style-preview-label">Preview</div>
+          <div id="block-style-glow-value" class="block-style-glow-value">Glow 55%</div>
+        </div>
+        <div id="block-style-preview" class="block-style-preview" aria-label="block style preview"></div>
+      </div>
+      <div class="prep-color-group block-style-color-group">
+        <div class="prep-color-label">Piece Color</div>
+        <div
+          id="block-style-color-options"
+          class="player-color-options"
+          role="group"
+          aria-label="piece color themes"
+        ></div>
+      </div>
+      <label class="block-style-glow-group" for="block-style-glow-input">
+        <span class="block-style-glow-label">Glow Strength</span>
+        <input
+          id="block-style-glow-input"
+          class="block-style-glow-input"
+          type="range"
+          min="0"
+          max="100"
+          step="1"
+          value="55"
+        />
+      </label>
+      <div class="block-style-actions">
+        <button id="block-style-close" class="primary-btn" type="button">Done</button>
+      </div>
     </div>
   </div>
 
