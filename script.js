@@ -657,8 +657,7 @@ function buildBlockStyleOptions() {
 function renderBlockStyleButtons() {
   blockStyleBtnEls.forEach((btn, player) => {
     if (!btn) return;
-    const theme = getPlayerColorTheme(player);
-    btn.textContent = `Block Style · ${theme.label} · Glow ${Math.round(getPlayerGlowLevel(player) * 100)}%`;
+    btn.textContent = 'Block Style';
   });
 }
 
