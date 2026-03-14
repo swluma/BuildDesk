@@ -1260,7 +1260,7 @@ function getPopupAnchorCell(piece, x, y) {
   return { x: x + anchorCell[0], y: y + anchorCell[1] };
 }
 
-function showScorePopup({ lineCount, points, specialDoubled }, anchorCell) {
+function showScorePopup({ lineCount, points, specialDoubled }, anchorCell, player = null) {
   if (!state.boardMetrics) refreshLayoutMetrics();
 
   if (state.scorePopupHandle) clearTimeout(state.scorePopupHandle);
@@ -1269,6 +1269,7 @@ function showScorePopup({ lineCount, points, specialDoubled }, anchorCell) {
 
   const popupEl = document.createElement('div');
   popupEl.className = 'score-popup';
+  if (player === 0) popupEl.classList.add('player-top-clear');
 
   const linesEl = document.createElement('div');
   linesEl.className = 'score-popup-lines';
@@ -1301,7 +1302,7 @@ function showScorePopup({ lineCount, points, specialDoubled }, anchorCell) {
   }, 1000);
 }
 
-function showBoardEffectPopup(label, detail, anchorCell, variant = 'special') {
+function showBoardEffectPopup(label, detail, anchorCell, variant = 'special', player = null) {
   if (!boardEffectLayerEl) return;
   if (!state.boardMetrics) refreshLayoutMetrics();
 
@@ -1311,6 +1312,7 @@ function showBoardEffectPopup(label, detail, anchorCell, variant = 'special') {
 
   const effectEl = document.createElement('div');
   effectEl.className = `board-effect-popup ${variant}`;
+  if (player === 0) effectEl.classList.add('player-top-clear');
 
   const labelEl = document.createElement('div');
   labelEl.className = 'board-effect-label';
@@ -1349,7 +1351,7 @@ function getSpecialEffectAnchor(consumedSpecialTiles, rows, cols) {
   return { x: (BOARD_SIZE - 1) / 2, y: (BOARD_SIZE - 1) / 2 };
 }
 
-function animateAndClear(rows, cols, consumedSpecialTiles = []) {
+function animateAndClear(rows, cols, consumedSpecialTiles = [], player = null) {
   const seen = new Set();
   rows.forEach((y) => {
     for (let x = 0; x < BOARD_SIZE; x += 1) {
@@ -1371,7 +1373,7 @@ function animateAndClear(rows, cols, consumedSpecialTiles = []) {
   if (consumedSpecialTiles.length) {
     const effectAnchor = getSpecialEffectAnchor(consumedSpecialTiles, rows, cols);
     const clearLabel = rows.length + cols.length > 1 ? 'CHAIN CLEAR' : 'LINE CLEAR';
-    showBoardEffectPopup(clearLabel, 'Special tile triggered', effectAnchor, 'special');
+    showBoardEffectPopup(clearLabel, 'Special tile triggered', effectAnchor, 'special', player);
   }
 
   setTimeout(() => {
@@ -1470,8 +1472,8 @@ function placeDraggedPiece(drag) {
     const scoreResult = scoreForClear(clearInfo.rows, clearInfo.cols);
     state.scores[scoringPlayer] += scoreResult.points;
     updateScores();
-    showScorePopup(scoreResult, getPopupAnchorCell(drag.piece, x, y));
-    animateAndClear(clearInfo.rows, clearInfo.cols, scoreResult.consumedSpecialTiles);
+    showScorePopup(scoreResult, getPopupAnchorCell(drag.piece, x, y), scoringPlayer);
+    animateAndClear(clearInfo.rows, clearInfo.cols, scoreResult.consumedSpecialTiles, scoringPlayer);
     maybeSpawnSpecialTiles();
   }
 

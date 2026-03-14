@@ -412,6 +412,10 @@ body {
   animation: score-popup-life 1s ease forwards;
 }
 
+.score-popup.player-top-clear {
+  animation-name: score-popup-life-top;
+}
+
 .score-popup-lines {
   font-size: clamp(0.72rem, 2.2vw, 0.95rem);
   font-weight: 900;
@@ -454,6 +458,10 @@ body {
   animation: board-effect-burst 0.72s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
 }
 
+.board-effect-popup.player-top-clear {
+  animation-name: board-effect-burst-top;
+}
+
 .board-effect-popup::before {
   content: '';
   position: absolute;
@@ -462,6 +470,10 @@ body {
   border: 1px solid rgba(255, 215, 111, 0.18);
   opacity: 0;
   animation: board-effect-ring 0.72s ease-out forwards;
+}
+
+.board-effect-popup.player-top-clear::before {
+  animation-name: board-effect-ring-top;
 }
 
 .board-effect-label {
@@ -1816,6 +1828,22 @@ body {
   }
 }
 
+@keyframes score-popup-life-top {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -62%) rotate(180deg);
+  }
+  12%,
+  78% {
+    opacity: 1;
+    transform: translate(-50%, -50%) rotate(180deg);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -32%) rotate(180deg);
+  }
+}
+
 @keyframes board-effect-burst {
   0% {
     opacity: 0;
@@ -1837,6 +1865,27 @@ body {
   }
 }
 
+@keyframes board-effect-burst-top {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -56%) scale(0.72) rotate(180deg);
+    filter: blur(1px);
+  }
+  18% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1.04) rotate(180deg);
+    filter: blur(0);
+  }
+  72% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1) rotate(180deg);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -40%) scale(0.94) rotate(180deg);
+  }
+}
+
 @keyframes board-effect-ring {
   0% {
     opacity: 0;
@@ -1848,6 +1897,20 @@ body {
   100% {
     opacity: 0;
     transform: scale(1.12);
+  }
+}
+
+@keyframes board-effect-ring-top {
+  0% {
+    opacity: 0;
+    transform: scale(0.82) rotate(180deg);
+  }
+  30% {
+    opacity: 0.85;
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.12) rotate(180deg);
   }
 }
 
