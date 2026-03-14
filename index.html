@@ -144,6 +144,7 @@
       <button id="special-spawn-btn" class="secondary-btn prep-setting-btn" type="button">Special Tile Chance: 5%</button>
       <button id="desired-skill-settings-btn" class="secondary-btn prep-setting-btn" type="button">Desired Skill: On · Cost 15 · 15s</button>
       <button id="piece-pool-btn" class="secondary-btn piece-pool-btn" type="button">Piece Types</button>
+      <button id="settings-transfer-btn" class="secondary-btn prep-setting-btn" type="button">Load / Save Settings</button>
       <button id="start-btn" class="primary-btn">Start Game</button>
     </div>
   </div>
@@ -347,6 +348,54 @@
       </label>
       <div class="block-style-actions">
         <button id="block-style-close" class="primary-btn" type="button">Done</button>
+      </div>
+    </div>
+  </div>
+
+  <div
+    id="settings-transfer-modal"
+    class="overlay hidden settings-transfer-modal"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="settings-transfer-title"
+  >
+    <div class="overlay-card settings-transfer-card">
+      <h2 id="settings-transfer-title">GAME SETTINGS</h2>
+      <p class="settings-transfer-copy">Export the current prep setup as JSON or import a saved settings file.</p>
+      <div class="settings-transfer-panels">
+        <section class="settings-transfer-panel" aria-labelledby="settings-export-title">
+          <div id="settings-export-title" class="settings-transfer-panel-title">Export</div>
+          <textarea
+            id="settings-export-output"
+            class="settings-transfer-output"
+            readonly
+            spellcheck="false"
+            aria-label="game settings export json"
+          ></textarea>
+          <div class="settings-transfer-actions">
+            <button id="settings-copy-btn" class="secondary-btn" type="button">Copy JSON</button>
+            <button id="settings-save-btn" class="primary-btn" type="button">Save JSON</button>
+          </div>
+        </section>
+        <section class="settings-transfer-panel" aria-labelledby="settings-import-title">
+          <div id="settings-import-title" class="settings-transfer-panel-title">Import</div>
+          <textarea
+            id="settings-import-input"
+            class="settings-transfer-input"
+            spellcheck="false"
+            placeholder="Paste settings JSON here"
+            aria-label="game settings import json"
+          ></textarea>
+          <div class="settings-transfer-actions">
+            <button id="settings-load-btn" class="secondary-btn" type="button">Load JSON</button>
+            <button id="settings-upload-btn" class="primary-btn" type="button">Upload JSON</button>
+          </div>
+          <input id="settings-upload-input" type="file" accept="application/json,.json" hidden />
+        </section>
+      </div>
+      <div id="settings-transfer-status" class="settings-transfer-status" aria-live="polite"></div>
+      <div class="settings-transfer-footer">
+        <button id="settings-transfer-close" class="primary-btn" type="button">Done</button>
       </div>
     </div>
   </div>

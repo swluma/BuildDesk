@@ -163,6 +163,7 @@ const specialSpawnModalEl = document.getElementById('special-spawn-modal');
 const specialSpawnInputEl = document.getElementById('special-spawn-input');
 const specialSpawnCloseBtn = document.getElementById('special-spawn-close');
 const desiredSkillSettingsBtn = document.getElementById('desired-skill-settings-btn');
+const settingsTransferBtn = document.getElementById('settings-transfer-btn');
 const desiredSkillSettingsModalEl = document.getElementById('desired-skill-settings-modal');
 const desiredSkillCostInputEl = document.getElementById('desired-skill-cost-input');
 const desiredSkillCooldownInputEl = document.getElementById('desired-skill-cooldown-input');
@@ -201,6 +202,16 @@ const blockStyleColorPickerEl = document.getElementById('block-style-color-picke
 const blockStyleColorCodeEl = document.getElementById('block-style-color-code');
 const blockStyleGlowInputEl = document.getElementById('block-style-glow-input');
 const blockStyleCloseBtn = document.getElementById('block-style-close');
+const settingsTransferModalEl = document.getElementById('settings-transfer-modal');
+const settingsExportOutputEl = document.getElementById('settings-export-output');
+const settingsImportInputEl = document.getElementById('settings-import-input');
+const settingsCopyBtn = document.getElementById('settings-copy-btn');
+const settingsSaveBtn = document.getElementById('settings-save-btn');
+const settingsLoadBtn = document.getElementById('settings-load-btn');
+const settingsUploadBtn = document.getElementById('settings-upload-btn');
+const settingsUploadInputEl = document.getElementById('settings-upload-input');
+const settingsTransferStatusEl = document.getElementById('settings-transfer-status');
+const settingsTransferCloseBtn = document.getElementById('settings-transfer-close');
 const desiredPieceModalEl = document.getElementById('desired-piece-modal');
 const desiredPieceModalTitleEl = document.getElementById('desired-piece-modal-title');
 const desiredPieceModalCopyEl = document.getElementById('desired-piece-modal-copy');
@@ -927,6 +938,196 @@ function renderDesiredSkillSettings() {
   if (desiredSkillToggleBtn) {
     desiredSkillToggleBtn.textContent = `Skill: ${state.desiredSkillEnabled ? 'On' : 'Off'}`;
     desiredSkillToggleBtn.classList.toggle('active', state.desiredSkillEnabled);
+  }
+}
+
+function setSettingsTransferStatus(message, tone = 'neutral') {
+  if (!settingsTransferStatusEl) return;
+  settingsTransferStatusEl.textContent = message;
+  settingsTransferStatusEl.dataset.tone = tone;
+}
+
+function getSettingsPayload() {
+  return {
+    version: 1,
+    prepDuration: state.prepDuration,
+    prepSpecialSpawnChance: state.prepSpecialSpawnChance,
+    prepDesiredSkillCost: state.prepDesiredSkillCost,
+    prepDesiredSkillCooldownMs: state.prepDesiredSkillCooldownMs,
+    desiredSkillEnabled: state.desiredSkillEnabled,
+    vsComputer: state.vsComputer,
+    computerDifficulty: state.computerDifficulty,
+    playerColorThemeIndexes: [...state.playerColorThemeIndexes],
+    playerCustomColors: [...state.playerCustomColors],
+    playerGlowLevels: [...state.playerGlowLevels],
+    desiredPieces: state.desiredPieces.map((piece) => ({
+      cells: cloneCells(piece.cells),
+    })),
+    customShapes: state.customShapes.map((shape) => ({
+      id: shape.id,
+      label: shape.label,
+      cells: cloneCells(shape.cells),
+    })),
+    allowedShapeIds: Array.from(state.allowedShapeIds),
+    nextCustomShapeNumber: state.nextCustomShapeNumber,
+  };
+}
+
+function refreshSettingsTransferExport() {
+  if (!settingsExportOutputEl) return;
+  settingsExportOutputEl.value = JSON.stringify(getSettingsPayload(), null, 2);
+}
+
+function isValidCellList(cells, { maxBlocks = null } = {}) {
+  if (!Array.isArray(cells) || cells.length === 0) return false;
+  if (maxBlocks !== null && cells.length > maxBlocks) return false;
+  return cells.every((cell) => (
+    Array.isArray(cell)
+    && cell.length === 2
+    && Number.isInteger(cell[0])
+    && Number.isInteger(cell[1])
+  ));
+}
+
+function normalizeDesiredPieceCells(value) {
+  if (!isValidCellList(value, { maxBlocks: DESIRED_MAX_BLOCKS })) return null;
+  return dimsForCells(cloneCells(value)).cells;
+}
+
+function normalizeCustomShapes(value) {
+  if (!Array.isArray(value)) return [];
+  const seenIds = new Set();
+  return value.flatMap((shape, index) => {
+    if (!shape || typeof shape !== 'object') return [];
+    if (!isValidCellList(shape.cells, { maxBlocks: DESIRED_MAX_BLOCKS })) return [];
+    const id = typeof shape.id === 'string' && shape.id ? shape.id : `custom-${index + 1}`;
+    if (seenIds.has(id)) return [];
+    seenIds.add(id);
+    return [{
+      id,
+      label: typeof shape.label === 'string' && shape.label ? shape.label : `Custom Piece ${index + 1}`,
+      cells: dimsForCells(cloneCells(shape.cells)).cells,
+    }];
+  });
+}
+
+function getNormalizedAllowedShapeIds(rawAllowedIds, customShapes) {
+  const allShapeIds = new Set([...SHAPES.map((shape) => shape.id), ...customShapes.map((shape) => shape.id)]);
+  const normalized = Array.isArray(rawAllowedIds)
+    ? rawAllowedIds.filter((shapeId) => typeof shapeId === 'string' && allShapeIds.has(shapeId))
+    : [];
+  if (normalized.length > 0) return new Set(normalized);
+  const firstShapeId = SHAPES[0]?.id || customShapes[0]?.id;
+  return new Set(firstShapeId ? [firstShapeId] : []);
+}
+
+function applySettingsPayload(payload) {
+  if (!payload || typeof payload !== 'object') {
+    throw new Error('Settings JSON must be an object.');
+  }
+  const desiredPieces = Array.isArray(payload.desiredPieces) ? payload.desiredPieces : [];
+  const normalizedDesiredPieces = [0, 1].map((player) => {
+    const piece = desiredPieces[player];
+    const cells = normalizeDesiredPieceCells(piece?.cells);
+    return makeDesiredPiece(player, cells || defaultDesiredCells());
+  });
+  const customShapes = normalizeCustomShapes(payload.customShapes);
+  const allowedShapeIds = getNormalizedAllowedShapeIds(payload.allowedShapeIds, customShapes);
+  const nextCustomShapeNumberRaw = Number(payload.nextCustomShapeNumber);
+
+  state.prepDuration = clampPreparationDuration(payload.prepDuration ?? DEFAULT_GAME_DURATION);
+  state.prepSpecialSpawnChance = Math.max(0, Math.min(1, Number(payload.prepSpecialSpawnChance) || 0));
+  state.prepDesiredSkillCost = Math.max(0, Math.min(100, Math.floor(Number(payload.prepDesiredSkillCost) || 0)));
+  state.prepDesiredSkillCooldownMs = Math.max(0, Math.min(100000, Math.floor(Number(payload.prepDesiredSkillCooldownMs) || 0)));
+  state.desiredSkillEnabled = Boolean(payload.desiredSkillEnabled);
+  state.vsComputer = Boolean(payload.vsComputer);
+  state.computerDifficulty = COMPUTER_DIFFICULTIES[payload.computerDifficulty] ? payload.computerDifficulty : 'normal';
+  state.playerColorThemeIndexes = [0, 1].map((player) => {
+    const index = Number(payload.playerColorThemeIndexes?.[player]);
+    return PLAYER_COLOR_THEMES[index] ? index : player;
+  });
+  state.playerCustomColors = [0, 1].map((player) => {
+    const rgb = hexToRgb(payload.playerCustomColors?.[player]);
+    return rgb ? rgbToHex(rgb) : null;
+  });
+  state.playerGlowLevels = [0, 1].map((player) => {
+    const value = Number(payload.playerGlowLevels?.[player]);
+    return Number.isFinite(value) ? Math.max(0, Math.min(1, value)) : 0;
+  });
+  state.customShapes = customShapes;
+  state.allowedShapeIds = allowedShapeIds;
+  state.nextCustomShapeNumber = Number.isInteger(nextCustomShapeNumberRaw) && nextCustomShapeNumberRaw > 0
+    ? nextCustomShapeNumberRaw
+    : customShapes.length + 1;
+  state.desiredPieces = normalizedDesiredPieces.map((piece, player) => makeDesiredPiece(player, piece.cells));
+
+  if (!state.matchInProgress) {
+    state.timeLeft = state.prepDuration;
+  }
+  renderPreparationDuration();
+  renderSpecialSpawnChance();
+  renderDesiredSkillSettings();
+  renderModeUi();
+  renderDesiredPiecePreviews();
+  renderPiecePoolList();
+  renderSkillButtons();
+  renderRacks();
+  renderBoard();
+  refreshSettingsTransferExport();
+}
+
+async function copySettingsJson() {
+  refreshSettingsTransferExport();
+  const json = settingsExportOutputEl?.value || '';
+  if (!json) {
+    setSettingsTransferStatus('Nothing to copy.', 'error');
+    return;
+  }
+  try {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(json);
+    } else if (settingsExportOutputEl) {
+      settingsExportOutputEl.focus();
+      settingsExportOutputEl.select();
+      document.execCommand('copy');
+    }
+    setSettingsTransferStatus('Settings JSON copied.', 'success');
+  } catch {
+    setSettingsTransferStatus('Copy failed. Use the Save JSON button instead.', 'error');
+  }
+}
+
+function saveSettingsJson() {
+  refreshSettingsTransferExport();
+  const json = settingsExportOutputEl?.value || '';
+  if (!json) {
+    setSettingsTransferStatus('Nothing to save.', 'error');
+    return;
+  }
+  const blob = new Blob([json], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = 'blockblast-duel-settings.json';
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+  setSettingsTransferStatus('Settings JSON saved.', 'success');
+}
+
+function loadSettingsJsonString(jsonText) {
+  const trimmed = String(jsonText || '').trim();
+  if (!trimmed) {
+    setSettingsTransferStatus('Paste JSON first.', 'error');
+    return;
+  }
+  try {
+    applySettingsPayload(JSON.parse(trimmed));
+    if (settingsImportInputEl) settingsImportInputEl.value = trimmed;
+    setSettingsTransferStatus('Settings loaded.', 'success');
+  } catch (error) {
+    setSettingsTransferStatus(error instanceof Error ? error.message : 'Failed to load settings JSON.', 'error');
   }
 }
 
@@ -1859,6 +2060,7 @@ function toggleVsComputer() {
 
 function openDifficultyModal() {
   if (!state.vsComputer) return;
+  closeSettingsTransferModal();
   closeBlockStyleModal();
   closeGameDescriptionModal();
   closeDesiredPieceModal();
@@ -1874,6 +2076,7 @@ function closeDifficultyModal() {
 }
 
 function openSpecialSpawnModal() {
+  closeSettingsTransferModal();
   closeBlockStyleModal();
   closeGameDescriptionModal();
   closeDesiredPieceModal();
@@ -1889,6 +2092,7 @@ function closeSpecialSpawnModal() {
 }
 
 function openDesiredSkillSettingsModal() {
+  closeSettingsTransferModal();
   closeBlockStyleModal();
   closeGameDescriptionModal();
   closeDesiredPieceModal();
@@ -1901,6 +2105,25 @@ function openDesiredSkillSettingsModal() {
 
 function closeDesiredSkillSettingsModal() {
   desiredSkillSettingsModalEl.classList.add('hidden');
+}
+
+function openSettingsTransferModal() {
+  closeGameDescriptionModal();
+  closeDesiredPieceModal();
+  closePiecePoolModal();
+  closeDifficultyModal();
+  closeSpecialSpawnModal();
+  closeDesiredSkillSettingsModal();
+  closeBlockStyleModal();
+  refreshSettingsTransferExport();
+  if (settingsImportInputEl) settingsImportInputEl.value = '';
+  if (settingsUploadInputEl) settingsUploadInputEl.value = '';
+  setSettingsTransferStatus('');
+  settingsTransferModalEl.classList.remove('hidden');
+}
+
+function closeSettingsTransferModal() {
+  settingsTransferModalEl.classList.add('hidden');
 }
 
 function centerCellsInEditor(cells) {
@@ -1948,6 +2171,7 @@ function updateDesiredPieceModal() {
 }
 
 function openDesiredPieceModal(player) {
+  closeSettingsTransferModal();
   closeBlockStyleModal();
   closeGameDescriptionModal();
   closeDifficultyModal();
@@ -1965,6 +2189,7 @@ function openDesiredPieceModal(player) {
 
 function openCustomPieceModal() {
   if (state.customShapes.length >= MAX_CUSTOM_PIECES) return;
+  closeSettingsTransferModal();
   closeBlockStyleModal();
   closeGameDescriptionModal();
   closeDifficultyModal();
@@ -1987,6 +2212,7 @@ function closeDesiredPieceModal({ reopenPiecePool = false } = {}) {
 }
 
 function openPiecePoolModal() {
+  closeSettingsTransferModal();
   closeBlockStyleModal();
   closeGameDescriptionModal();
   closeDifficultyModal();
@@ -2002,6 +2228,7 @@ function closePiecePoolModal() {
 }
 
 function openGameDescriptionModal() {
+  closeSettingsTransferModal();
   closeBlockStyleModal();
   closeDifficultyModal();
   closeSpecialSpawnModal();
@@ -2016,6 +2243,7 @@ function closeGameDescriptionModal() {
 }
 
 function openBlockStyleModal(player) {
+  closeSettingsTransferModal();
   closeGameDescriptionModal();
   closeDesiredPieceModal();
   closePiecePoolModal();
@@ -2202,6 +2430,7 @@ function startGameFlow() {
   closeSpecialSpawnModal();
   closeDesiredSkillSettingsModal();
   closeBlockStyleModal();
+  closeSettingsTransferModal();
   closePauseMenu();
   hidePauseOverlay();
   resetState();
@@ -2233,6 +2462,7 @@ function returnToPreparation() {
   closeSpecialSpawnModal();
   closeDesiredSkillSettingsModal();
   closeBlockStyleModal();
+  closeSettingsTransferModal();
   closePauseMenu();
   hidePauseOverlay();
   resetState();
@@ -2270,6 +2500,7 @@ function init() {
   renderPreparationDuration();
   renderSpecialSpawnChance();
   renderDesiredSkillSettings();
+  refreshSettingsTransferExport();
   refreshLayoutMetrics();
   renderPauseButton();
 }
@@ -2294,6 +2525,7 @@ blockStyleGlowInputEl?.addEventListener('input', (event) => {
   setPlayerGlowLevel(state.blockStyleModalPlayer, Number(event.target.value) / 100);
 });
 piecePoolBtn.addEventListener('click', openPiecePoolModal);
+settingsTransferBtn.addEventListener('click', openSettingsTransferModal);
 specialSpawnBtn.addEventListener('click', openSpecialSpawnModal);
 desiredSkillSettingsBtn.addEventListener('click', openDesiredSkillSettingsModal);
 gameDescriptionBtn.addEventListener('click', openGameDescriptionModal);
@@ -2344,6 +2576,30 @@ desiredPieceSaveBtn.addEventListener('click', saveDesiredDraft);
 piecePoolCloseBtn.addEventListener('click', closePiecePoolModal);
 difficultyCloseBtn.addEventListener('click', closeDifficultyModal);
 blockStyleCloseBtn.addEventListener('click', closeBlockStyleModal);
+settingsTransferCloseBtn.addEventListener('click', closeSettingsTransferModal);
+settingsCopyBtn.addEventListener('click', () => {
+  copySettingsJson();
+});
+settingsSaveBtn.addEventListener('click', saveSettingsJson);
+settingsLoadBtn.addEventListener('click', () => {
+  loadSettingsJsonString(settingsImportInputEl?.value || '');
+});
+settingsUploadBtn.addEventListener('click', () => {
+  settingsUploadInputEl?.click();
+});
+settingsUploadInputEl?.addEventListener('change', async (event) => {
+  const file = event.target.files?.[0];
+  if (!file) return;
+  try {
+    const text = await file.text();
+    if (settingsImportInputEl) settingsImportInputEl.value = text;
+    loadSettingsJsonString(text);
+  } catch {
+    setSettingsTransferStatus('Failed to read the uploaded JSON file.', 'error');
+  } finally {
+    event.target.value = '';
+  }
+});
 specialSpawnCloseBtn.addEventListener('click', () => {
   commitSpecialSpawnChance();
   closeSpecialSpawnModal();
@@ -2364,6 +2620,9 @@ desiredPieceModalEl.addEventListener('click', (event) => {
 });
 blockStyleModalEl.addEventListener('click', (event) => {
   if (event.target === blockStyleModalEl) closeBlockStyleModal();
+});
+settingsTransferModalEl.addEventListener('click', (event) => {
+  if (event.target === settingsTransferModalEl) closeSettingsTransferModal();
 });
 difficultyModalEl.addEventListener('click', (event) => {
   if (event.target === difficultyModalEl) closeDifficultyModal();
@@ -2395,6 +2654,7 @@ window.addEventListener('resize', () => {
   renderSpecialSlot();
   renderDesiredPiecePreviews();
   if (!blockStyleModalEl.classList.contains('hidden')) renderBlockStyleModal();
+  if (!settingsTransferModalEl.classList.contains('hidden')) refreshSettingsTransferExport();
   if (state.pieceEditorDraft) updateDesiredPieceModal();
   if (!piecePoolModalEl.classList.contains('hidden')) renderPiecePoolList();
 });
@@ -2423,6 +2683,8 @@ document.addEventListener('keydown', (event) => {
     closeDesiredPieceModal({ reopenPiecePool: Boolean(state.pieceEditorDraft?.returnToPiecePool) });
   } else if (event.key === 'Escape' && !blockStyleModalEl.classList.contains('hidden')) {
     closeBlockStyleModal();
+  } else if (event.key === 'Escape' && !settingsTransferModalEl.classList.contains('hidden')) {
+    closeSettingsTransferModal();
   } else if (event.key === 'Escape' && !difficultyModalEl.classList.contains('hidden')) {
     closeDifficultyModal();
   } else if (event.key === 'Escape' && !specialSpawnModalEl.classList.contains('hidden')) {
