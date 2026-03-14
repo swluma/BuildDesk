@@ -1472,6 +1472,12 @@ body {
   line-height: 1.4;
 }
 
+.stuck-penalty-copy {
+  margin: 8px 0 0;
+  color: #d3e4ef;
+  line-height: 1.4;
+}
+
 .desired-skill-settings-copy {
   margin: 8px 0 0;
   color: #d3e4ef;

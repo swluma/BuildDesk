@@ -144,6 +144,7 @@
         </label>
       </div>
       <button id="special-spawn-btn" class="secondary-btn prep-setting-btn" type="button">Special Tile Chance: 5%</button>
+      <button id="stuck-penalty-btn" class="secondary-btn prep-setting-btn" type="button">Jam Penalty: 25%</button>
       <button id="desired-skill-settings-btn" class="secondary-btn prep-setting-btn" type="button">Desired Skill: On · Cost 15 · 15s</button>
       <button id="piece-pool-btn" class="secondary-btn piece-pool-btn" type="button">Piece Types</button>
       <button id="reset-settings-btn" class="secondary-btn prep-setting-btn reset-settings-btn" type="button">Reset All Settings</button>
@@ -445,6 +446,36 @@
       <div class="special-spawn-hint">0 disables spawning. 100 guarantees a spawn check succeeds.</div>
       <div class="special-spawn-actions">
         <button id="special-spawn-close" class="primary-btn" type="button">Done</button>
+      </div>
+    </div>
+  </div>
+
+  <div
+    id="stuck-penalty-modal"
+    class="overlay hidden stuck-penalty-modal"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="stuck-penalty-modal-title"
+  >
+    <div class="overlay-card stuck-penalty-card">
+      <h2 id="stuck-penalty-modal-title">JAM PENALTY</h2>
+      <p class="stuck-penalty-copy">Choose how much score is lost when a player jams the board and no placed piece can fit.</p>
+      <label class="special-spawn-input-wrap" for="stuck-penalty-input">
+        <input
+          id="stuck-penalty-input"
+          class="special-spawn-input"
+          type="number"
+          min="0"
+          max="100"
+          step="1"
+          value="25"
+          inputmode="numeric"
+        />
+        <span class="special-spawn-unit">%</span>
+      </label>
+      <div class="special-spawn-hint">0 keeps the score unchanged. 100 drops the score to zero.</div>
+      <div class="special-spawn-actions">
+        <button id="stuck-penalty-close" class="primary-btn" type="button">Done</button>
       </div>
     </div>
   </div>

@@ -4,6 +4,7 @@ const DEFAULT_GAME_DURATION = 120;
 const MIN_GAME_DURATION = 30;
 const MAX_GAME_DURATION = 600;
 const DEFAULT_SPECIAL_SPAWN_CHANCE = 0.05;
+const DEFAULT_STUCK_PENALTY = 0.25;
 const SPECIAL_TILE_COUNT = 3;
 const RESUME_COUNTDOWN = 3;
 const INVALID_FLASH_MS = 800;
@@ -163,6 +164,10 @@ const specialSpawnBtn = document.getElementById('special-spawn-btn');
 const specialSpawnModalEl = document.getElementById('special-spawn-modal');
 const specialSpawnInputEl = document.getElementById('special-spawn-input');
 const specialSpawnCloseBtn = document.getElementById('special-spawn-close');
+const stuckPenaltyBtn = document.getElementById('stuck-penalty-btn');
+const stuckPenaltyModalEl = document.getElementById('stuck-penalty-modal');
+const stuckPenaltyInputEl = document.getElementById('stuck-penalty-input');
+const stuckPenaltyCloseBtn = document.getElementById('stuck-penalty-close');
 const desiredSkillSettingsBtn = document.getElementById('desired-skill-settings-btn');
 const settingsTransferBtn = document.getElementById('settings-transfer-btn');
 const desiredSkillSettingsModalEl = document.getElementById('desired-skill-settings-modal');
@@ -264,6 +269,7 @@ const state = {
   timeLeft: DEFAULT_GAME_DURATION,
   prepDuration: DEFAULT_GAME_DURATION,
   prepSpecialSpawnChance: DEFAULT_SPECIAL_SPAWN_CHANCE,
+  prepStuckPenalty: DEFAULT_STUCK_PENALTY,
   prepDesiredSkillCost: DEFAULT_DESIRED_SKILL_COST,
   prepDesiredSkillCooldownMs: DEFAULT_DESIRED_SKILL_COOLDOWN_MS,
   desiredSkillEnabled: true,
@@ -524,6 +530,7 @@ function applyDefaultSettings() {
   state.playerGlowLevels = [0, 0];
   state.prepDuration = DEFAULT_GAME_DURATION;
   state.prepSpecialSpawnChance = DEFAULT_SPECIAL_SPAWN_CHANCE;
+  state.prepStuckPenalty = DEFAULT_STUCK_PENALTY;
   state.prepDesiredSkillCost = DEFAULT_DESIRED_SKILL_COST;
   state.prepDesiredSkillCooldownMs = DEFAULT_DESIRED_SKILL_COOLDOWN_MS;
   state.desiredSkillEnabled = true;
@@ -1046,6 +1053,7 @@ function resetAllSettings() {
   applyDefaultSettings();
   renderPreparationDuration();
   renderSpecialSpawnChance();
+  renderStuckPenalty();
   renderDesiredSkillSettings();
   renderModeUi();
   renderDesiredPiecePreviews();
@@ -1063,6 +1071,7 @@ function getSettingsPayload() {
     version: 1,
     prepDuration: state.prepDuration,
     prepSpecialSpawnChance: state.prepSpecialSpawnChance,
+    prepStuckPenalty: state.prepStuckPenalty,
     prepDesiredSkillCost: state.prepDesiredSkillCost,
     prepDesiredSkillCooldownMs: state.prepDesiredSkillCooldownMs,
     desiredSkillEnabled: state.desiredSkillEnabled,
@@ -1146,6 +1155,10 @@ function applySettingsPayload(payload, { persist = true } = {}) {
 
   state.prepDuration = clampPreparationDuration(payload.prepDuration ?? DEFAULT_GAME_DURATION);
   state.prepSpecialSpawnChance = Math.max(0, Math.min(1, Number(payload.prepSpecialSpawnChance) || 0));
+  state.prepStuckPenalty = Math.max(
+    0,
+    Math.min(1, Number(payload.prepStuckPenalty ?? DEFAULT_STUCK_PENALTY)),
+  );
   state.prepDesiredSkillCost = Math.max(0, Math.min(100, Math.floor(Number(payload.prepDesiredSkillCost) || 0)));
   state.prepDesiredSkillCooldownMs = Math.max(0, Math.min(100000, Math.floor(Number(payload.prepDesiredSkillCooldownMs) || 0)));
   state.desiredSkillEnabled = Boolean(payload.desiredSkillEnabled);
@@ -1175,6 +1188,7 @@ function applySettingsPayload(payload, { persist = true } = {}) {
   }
   renderPreparationDuration();
   renderSpecialSpawnChance();
+  renderStuckPenalty();
   renderDesiredSkillSettings();
   renderModeUi();
   renderDesiredPiecePreviews();
@@ -1248,6 +1262,19 @@ function setPreparationDuration(value) {
   persistSettingsToStorage();
 }
 
+function getStuckPenaltyPercent() {
+  return Math.round(state.prepStuckPenalty * 100);
+}
+
+function renderStuckPenalty() {
+  if (stuckPenaltyBtn) {
+    stuckPenaltyBtn.textContent = `Jam Penalty: ${getStuckPenaltyPercent()}%`;
+  }
+  if (stuckPenaltyInputEl) {
+    stuckPenaltyInputEl.value = String(getStuckPenaltyPercent());
+  }
+}
+
 function previewPreparationDuration(value) {
   const parsed = Number(value);
   if (!Number.isFinite(parsed)) return;
@@ -1291,6 +1318,23 @@ function previewDesiredSkillCost(value) {
   renderDesiredSkillSettings();
   renderSkillButtons();
   persistSettingsToStorage();
+}
+
+function previewStuckPenalty(value) {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return;
+  state.prepStuckPenalty = Math.max(0, Math.min(1, parsed / 100));
+  renderStuckPenalty();
+  persistSettingsToStorage();
+}
+
+function commitStuckPenalty() {
+  if (!stuckPenaltyInputEl) return;
+  if (!stuckPenaltyInputEl.value) {
+    renderStuckPenalty();
+    return;
+  }
+  previewStuckPenalty(stuckPenaltyInputEl.value);
 }
 
 function commitDesiredSkillCost() {
@@ -2087,9 +2131,10 @@ function clearBoardAndRefreshPieces() {
 function handleStuck(triggerPlayer) {
   state.gameActive = false;
   clearComputerMoveTimer();
-  state.scores[triggerPlayer] = Math.floor(state.scores[triggerPlayer] * 0.75);
+  const keptRatio = Math.max(0, 1 - state.prepStuckPenalty);
+  state.scores[triggerPlayer] = Math.floor(state.scores[triggerPlayer] * keptRatio);
   updateScores();
-  showPauseOverlay(`${getPlayerDisplayName(triggerPlayer)} caused a jam. Score reduced by 25%!`);
+  showPauseOverlay(`${getPlayerDisplayName(triggerPlayer)} caused a jam. Score reduced by ${getStuckPenaltyPercent()}%!`);
   clearBoardAndRefreshPieces();
 
   let remaining = RESUME_COUNTDOWN;
@@ -2183,6 +2228,7 @@ function openDifficultyModal() {
   closeDesiredPieceModal();
   closePiecePoolModal();
   closeSpecialSpawnModal();
+  closeStuckPenaltyModal();
   closeDesiredSkillSettingsModal();
   difficultyModalEl.classList.remove('hidden');
   buildDifficultyList();
@@ -2199,6 +2245,7 @@ function openSpecialSpawnModal() {
   closeDesiredPieceModal();
   closePiecePoolModal();
   closeDifficultyModal();
+  closeStuckPenaltyModal();
   closeDesiredSkillSettingsModal();
   renderSpecialSpawnChance();
   specialSpawnModalEl.classList.remove('hidden');
@@ -2206,6 +2253,24 @@ function openSpecialSpawnModal() {
 
 function closeSpecialSpawnModal() {
   specialSpawnModalEl.classList.add('hidden');
+}
+
+function openStuckPenaltyModal() {
+  closeSettingsTransferModal();
+  closeBlockStyleModal();
+  closeGameDescriptionModal();
+  closeDesiredPieceModal();
+  closePiecePoolModal();
+  closeDifficultyModal();
+  closeSpecialSpawnModal();
+  closeStuckPenaltyModal();
+  closeDesiredSkillSettingsModal();
+  renderStuckPenalty();
+  stuckPenaltyModalEl.classList.remove('hidden');
+}
+
+function closeStuckPenaltyModal() {
+  stuckPenaltyModalEl.classList.add('hidden');
 }
 
 function openDesiredSkillSettingsModal() {
@@ -2216,6 +2281,7 @@ function openDesiredSkillSettingsModal() {
   closePiecePoolModal();
   closeDifficultyModal();
   closeSpecialSpawnModal();
+  closeStuckPenaltyModal();
   renderDesiredSkillSettings();
   desiredSkillSettingsModalEl.classList.remove('hidden');
 }
@@ -2230,6 +2296,7 @@ function openSettingsTransferModal() {
   closePiecePoolModal();
   closeDifficultyModal();
   closeSpecialSpawnModal();
+  closeStuckPenaltyModal();
   closeDesiredSkillSettingsModal();
   closeBlockStyleModal();
   refreshSettingsTransferExport();
@@ -2293,6 +2360,7 @@ function openDesiredPieceModal(player) {
   closeGameDescriptionModal();
   closeDifficultyModal();
   closeSpecialSpawnModal();
+  closeStuckPenaltyModal();
   closeDesiredSkillSettingsModal();
   closePiecePoolModal();
   state.pieceEditorDraft = {
@@ -2311,6 +2379,7 @@ function openCustomPieceModal() {
   closeGameDescriptionModal();
   closeDifficultyModal();
   closeSpecialSpawnModal();
+  closeStuckPenaltyModal();
   closeDesiredSkillSettingsModal();
   closePiecePoolModal();
   state.pieceEditorDraft = {
@@ -2334,6 +2403,7 @@ function openPiecePoolModal() {
   closeGameDescriptionModal();
   closeDifficultyModal();
   closeSpecialSpawnModal();
+  closeStuckPenaltyModal();
   closeDesiredSkillSettingsModal();
   closeDesiredPieceModal();
   piecePoolModalEl.classList.remove('hidden');
@@ -2349,6 +2419,7 @@ function openGameDescriptionModal() {
   closeBlockStyleModal();
   closeDifficultyModal();
   closeSpecialSpawnModal();
+  closeStuckPenaltyModal();
   closeDesiredSkillSettingsModal();
   closeDesiredPieceModal();
   closePiecePoolModal();
@@ -2366,6 +2437,7 @@ function openBlockStyleModal(player) {
   closePiecePoolModal();
   closeDifficultyModal();
   closeSpecialSpawnModal();
+  closeStuckPenaltyModal();
   closeDesiredSkillSettingsModal();
   state.blockStyleModalPlayer = player;
   blockStyleModalEl.classList.remove('hidden');
@@ -2556,6 +2628,7 @@ function initDesiredPieces() {
 function startGameFlow() {
   commitPreparationDuration();
   commitSpecialSpawnChance();
+  commitStuckPenalty();
   commitDesiredSkillCost();
   commitDesiredSkillCooldown();
   endOverlayEl.classList.add('hidden');
@@ -2612,6 +2685,7 @@ function returnToPreparation() {
   renderSkillButtons();
   renderPreparationDuration();
   renderSpecialSpawnChance();
+  renderStuckPenalty();
   renderDesiredSkillSettings();
   overlayEl.classList.remove('hidden');
   refreshLayoutMetrics();
@@ -2637,6 +2711,7 @@ function init() {
   renderPiecePoolButton();
   renderPreparationDuration();
   renderSpecialSpawnChance();
+  renderStuckPenalty();
   renderDesiredSkillSettings();
   refreshSettingsTransferExport();
   if (!loadedStoredSettings) persistSettingsToStorage();
@@ -2667,6 +2742,7 @@ piecePoolBtn.addEventListener('click', openPiecePoolModal);
 settingsTransferBtn.addEventListener('click', openSettingsTransferModal);
 resetSettingsBtn.addEventListener('click', resetAllSettings);
 specialSpawnBtn.addEventListener('click', openSpecialSpawnModal);
+stuckPenaltyBtn.addEventListener('click', openStuckPenaltyModal);
 desiredSkillSettingsBtn.addEventListener('click', openDesiredSkillSettingsModal);
 gameDescriptionBtn.addEventListener('click', openGameDescriptionModal);
 vsComputerBtn.addEventListener('click', toggleVsComputer);
@@ -2693,6 +2769,14 @@ specialSpawnInputEl?.addEventListener('input', (event) => {
 });
 specialSpawnInputEl?.addEventListener('blur', () => {
   commitSpecialSpawnChance();
+});
+stuckPenaltyInputEl?.addEventListener('input', (event) => {
+  const digitsOnly = event.target.value.replace(/[^\d]/g, '');
+  event.target.value = digitsOnly;
+  if (digitsOnly) previewStuckPenalty(digitsOnly);
+});
+stuckPenaltyInputEl?.addEventListener('blur', () => {
+  commitStuckPenalty();
 });
 desiredSkillCostInputEl?.addEventListener('input', (event) => {
   const digitsOnly = event.target.value.replace(/[^\d]/g, '');
@@ -2750,6 +2834,10 @@ specialSpawnCloseBtn.addEventListener('click', () => {
   commitSpecialSpawnChance();
   closeSpecialSpawnModal();
 });
+stuckPenaltyCloseBtn.addEventListener('click', () => {
+  commitStuckPenalty();
+  closeStuckPenaltyModal();
+});
 desiredSkillSettingsCloseBtn.addEventListener('click', () => {
   commitDesiredSkillCost();
   commitDesiredSkillCooldown();
@@ -2772,6 +2860,12 @@ settingsTransferModalEl.addEventListener('click', (event) => {
 });
 difficultyModalEl.addEventListener('click', (event) => {
   if (event.target === difficultyModalEl) closeDifficultyModal();
+});
+stuckPenaltyModalEl.addEventListener('click', (event) => {
+  if (event.target === stuckPenaltyModalEl) {
+    commitStuckPenalty();
+    closeStuckPenaltyModal();
+  }
 });
 specialSpawnModalEl.addEventListener('click', (event) => {
   if (event.target === specialSpawnModalEl) {
@@ -2833,6 +2927,9 @@ document.addEventListener('keydown', (event) => {
     closeSettingsTransferModal();
   } else if (event.key === 'Escape' && !difficultyModalEl.classList.contains('hidden')) {
     closeDifficultyModal();
+  } else if (event.key === 'Escape' && !stuckPenaltyModalEl.classList.contains('hidden')) {
+    commitStuckPenalty();
+    closeStuckPenaltyModal();
   } else if (event.key === 'Escape' && !specialSpawnModalEl.classList.contains('hidden')) {
     commitSpecialSpawnChance();
     closeSpecialSpawnModal();
