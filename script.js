@@ -150,7 +150,7 @@ const vsComputerBtn = document.getElementById('vs-computer-btn');
 const prepTimeInputEl = document.getElementById('prep-time-input');
 const pieceSlotTemplate = document.getElementById('piece-slot-template');
 const specialSlotEl = document.getElementById('special-slot');
-const specialHintEl = specialSlotEl.querySelector('.special-hint');
+const specialSlotStatusEl = document.getElementById('special-slot-status');
 const skillBtnEls = [document.getElementById('skill-btn-0'), document.getElementById('skill-btn-1')];
 const playerNameEls = [
   document.getElementById('player-name-0'),
@@ -681,9 +681,8 @@ function renderSpecialSlot() {
   specialSlotEl.classList.toggle('ready', tileCount > 0);
   specialSlotEl.classList.remove('disabled', 'has-piece', 'drag-origin');
   specialSlotEl.onpointerdown = null;
-  specialHintEl.textContent = tileCount > 0
-    ? `${tileCount} special ${tileCount === 1 ? 'tile is' : 'tiles are'} active`
-    : '5% chance after a line clear';
+  specialSlotStatusEl.textContent = String(tileCount);
+  specialSlotStatusEl.setAttribute('aria-label', tileCount > 0 ? `${tileCount} special tiles active` : 'No special tiles active');
 }
 
 function renderBoard() {
