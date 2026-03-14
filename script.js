@@ -1521,17 +1521,43 @@ function markGhost(drag) {
   });
 }
 
+function findNearbyPlacement(piece, x, y) {
+  const offsets = [
+    [0, 0],
+    [-1, 0],
+    [1, 0],
+    [0, -1],
+    [0, 1],
+    [-1, -1],
+    [1, -1],
+    [-1, 1],
+    [1, 1],
+  ];
+
+  for (const [offsetX, offsetY] of offsets) {
+    const candidateX = x + offsetX;
+    const candidateY = y + offsetY;
+    if (canPlacePiece(piece, candidateX, candidateY)) {
+      return { x: candidateX, y: candidateY };
+    }
+  }
+
+  return null;
+}
+
 function updateDrag(event, drag) {
   const left = event.clientX - drag.pointerOffsetX;
   const top = event.clientY - drag.pointerOffsetY;
   drag.dragEl.style.left = `${left}px`;
   drag.dragEl.style.top = `${top}px`;
 
-  drag.candidate = {
+  const rawCandidate = {
     x: Math.round((left - state.boardMetrics.left) / drag.cellSize),
     y: Math.round((top - state.boardMetrics.top) / drag.cellSize),
   };
-  drag.valid = canPlacePiece(drag.piece, drag.candidate.x, drag.candidate.y);
+  const adjustedCandidate = findNearbyPlacement(drag.piece, rawCandidate.x, rawCandidate.y);
+  drag.candidate = adjustedCandidate || rawCandidate;
+  drag.valid = Boolean(adjustedCandidate);
   drag.dragEl.classList.toggle('valid', drag.valid);
   drag.dragEl.classList.toggle('invalid', !drag.valid);
   markGhost(drag);
