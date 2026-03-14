@@ -675,8 +675,11 @@ body {
   margin-top: 16px;
 }
 
-.prep-description-btn {
+.secondary-btn.prep-description-btn {
   margin-top: 12px;
+  border-color: rgba(71, 140, 255, 0.9);
+  background: linear-gradient(180deg, #88c5ff, #4f8dff);
+  color: #061a3d;
 }
 
 .prep-player-card {
