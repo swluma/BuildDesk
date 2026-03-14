@@ -122,6 +122,12 @@ body {
   align-items: stretch;
 }
 
+.player-top .score-box,
+.player-top .score-skill-btn {
+  transform: rotate(180deg);
+  transform-origin: center;
+}
+
 .player-header {
   display: flex;
   justify-content: flex-start;
