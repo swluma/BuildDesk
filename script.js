@@ -176,6 +176,7 @@ const desiredSkillCooldownInputEl = document.getElementById('desired-skill-coold
 const desiredSkillToggleBtn = document.getElementById('desired-skill-toggle-btn');
 const desiredSkillSettingsCloseBtn = document.getElementById('desired-skill-settings-close');
 const gameDescriptionBtn = document.getElementById('game-description-btn');
+const fullscreenBtn = document.getElementById('fullscreen-btn');
 const pieceSlotTemplate = document.getElementById('piece-slot-template');
 const skillBtnEls = [document.getElementById('skill-btn-0'), document.getElementById('skill-btn-1')];
 const playerNameEls = [
@@ -823,6 +824,34 @@ function renderModeUi() {
   vsComputerBtn.classList.toggle('active', state.vsComputer);
   renderBlockStyleButtons();
   renderBlockStyleModal();
+}
+
+function canUseFullscreen() {
+  return Boolean(document.documentElement?.requestFullscreen && document.exitFullscreen);
+}
+
+function renderFullscreenButton() {
+  if (!fullscreenBtn) return;
+  if (!canUseFullscreen()) {
+    fullscreenBtn.hidden = true;
+    return;
+  }
+  fullscreenBtn.hidden = false;
+  fullscreenBtn.textContent = document.fullscreenElement ? 'Exit Full Screen' : 'Enter Full Screen';
+}
+
+async function toggleFullscreenMode() {
+  if (!canUseFullscreen()) return;
+  try {
+    if (document.fullscreenElement) {
+      await document.exitFullscreen();
+    } else {
+      await document.documentElement.requestFullscreen();
+    }
+  } catch {
+    // Ignore fullscreen failures and keep the button state in sync with the browser.
+  }
+  renderFullscreenButton();
 }
 
 function renderPiecePoolList() {
@@ -2713,6 +2742,7 @@ function init() {
   renderSpecialSpawnChance();
   renderStuckPenalty();
   renderDesiredSkillSettings();
+  renderFullscreenButton();
   refreshSettingsTransferExport();
   if (!loadedStoredSettings) persistSettingsToStorage();
   refreshLayoutMetrics();
@@ -2740,6 +2770,9 @@ blockStyleGlowInputEl?.addEventListener('input', (event) => {
 });
 piecePoolBtn.addEventListener('click', openPiecePoolModal);
 settingsTransferBtn.addEventListener('click', openSettingsTransferModal);
+fullscreenBtn?.addEventListener('click', () => {
+  toggleFullscreenMode();
+});
 resetSettingsBtn.addEventListener('click', resetAllSettings);
 specialSpawnBtn.addEventListener('click', openSpecialSpawnModal);
 stuckPenaltyBtn.addEventListener('click', openStuckPenaltyModal);
@@ -2893,10 +2926,15 @@ window.addEventListener('resize', () => {
   renderRacks();
   renderSpecialSlot();
   renderDesiredPiecePreviews();
+  renderFullscreenButton();
   if (!blockStyleModalEl.classList.contains('hidden')) renderBlockStyleModal();
   if (!settingsTransferModalEl.classList.contains('hidden')) refreshSettingsTransferExport();
   if (state.pieceEditorDraft) updateDesiredPieceModal();
   if (!piecePoolModalEl.classList.contains('hidden')) renderPiecePoolList();
+});
+
+document.addEventListener('fullscreenchange', () => {
+  renderFullscreenButton();
 });
 
 function hasScrollableParent(target) {
