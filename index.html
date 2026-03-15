@@ -545,6 +545,19 @@
         <span class="special-spawn-unit">sec</span>
       </label>
       <div class="special-spawn-hint">Every spawn creates 2 different skill tiles on random cells.</div>
+      <label class="block-style-glow-group" for="skill-tile-max-input">
+        <span class="block-style-glow-label">Max Skill Tiles on Board</span>
+        <input
+          id="skill-tile-max-input"
+          class="block-style-glow-input"
+          type="range"
+          min="0"
+          max="64"
+          step="1"
+          value="10"
+        />
+        <span id="skill-tile-max-value" class="difficulty-custom-value">10</span>
+      </label>
       <div class="special-spawn-actions">
         <button id="skill-tile-settings-close" class="primary-btn" type="button">Done</button>
       </div>

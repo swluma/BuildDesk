@@ -8,6 +8,7 @@ const DEFAULT_STUCK_PENALTY = 0.25;
 const SPECIAL_TILE_COUNT = 3;
 const SKILL_TILE_SPAWN_INTERVAL_MS = 10000;
 const SKILL_TILE_SPAWN_COUNT = 2;
+const DEFAULT_MAX_SKILL_TILES = 10;
 const SCORE_BOOST_DURATION_MS = 10000;
 const RESUME_COUNTDOWN = 3;
 const INVALID_FLASH_MS = 800;
@@ -194,6 +195,8 @@ const specialSpawnCloseBtn = document.getElementById('special-spawn-close');
 const skillTileSettingsBtn = document.getElementById('skill-tile-settings-btn');
 const skillTileSettingsModalEl = document.getElementById('skill-tile-settings-modal');
 const skillTileIntervalInputEl = document.getElementById('skill-tile-interval-input');
+const skillTileMaxInputEl = document.getElementById('skill-tile-max-input');
+const skillTileMaxValueEl = document.getElementById('skill-tile-max-value');
 const skillTileSettingsCloseBtn = document.getElementById('skill-tile-settings-close');
 const stuckPenaltyBtn = document.getElementById('stuck-penalty-btn');
 const nonStopModeBtn = document.getElementById('non-stop-mode-btn');
@@ -318,6 +321,7 @@ const state = {
   prepDuration: DEFAULT_GAME_DURATION,
   prepSpecialSpawnChance: DEFAULT_SPECIAL_SPAWN_CHANCE,
   prepSkillTileSpawnIntervalMs: SKILL_TILE_SPAWN_INTERVAL_MS,
+  prepMaxSkillTiles: DEFAULT_MAX_SKILL_TILES,
   prepStuckPenalty: DEFAULT_STUCK_PENALTY,
   prepNonStopMode: false,
   prepDesiredSkillCost: DEFAULT_DESIRED_SKILL_COST,
@@ -653,6 +657,7 @@ function applyDefaultSettings() {
   state.prepDuration = DEFAULT_GAME_DURATION;
   state.prepSpecialSpawnChance = DEFAULT_SPECIAL_SPAWN_CHANCE;
   state.prepSkillTileSpawnIntervalMs = SKILL_TILE_SPAWN_INTERVAL_MS;
+  state.prepMaxSkillTiles = DEFAULT_MAX_SKILL_TILES;
   state.prepStuckPenalty = DEFAULT_STUCK_PENALTY;
   state.prepNonStopMode = false;
   state.prepDesiredSkillCost = DEFAULT_DESIRED_SKILL_COST;
@@ -1368,10 +1373,16 @@ function getSkillTileSpawnIntervalSeconds() {
 
 function renderSkillTileSettings() {
   if (skillTileSettingsBtn) {
-    skillTileSettingsBtn.textContent = `Skill Tiles: ${getSkillTileSpawnIntervalSeconds()}s`;
+    skillTileSettingsBtn.textContent = `Skill Tiles: ${getSkillTileSpawnIntervalSeconds()}s · Max ${state.prepMaxSkillTiles}`;
   }
   if (skillTileIntervalInputEl) {
     skillTileIntervalInputEl.value = String(getSkillTileSpawnIntervalSeconds());
+  }
+  if (skillTileMaxInputEl) {
+    skillTileMaxInputEl.value = String(state.prepMaxSkillTiles);
+  }
+  if (skillTileMaxValueEl) {
+    skillTileMaxValueEl.textContent = String(state.prepMaxSkillTiles);
   }
 }
 
@@ -1462,6 +1473,7 @@ function getSettingsPayload() {
     prepDuration: state.prepDuration,
     prepSpecialSpawnChance: state.prepSpecialSpawnChance,
     prepSkillTileSpawnIntervalMs: state.prepSkillTileSpawnIntervalMs,
+    prepMaxSkillTiles: state.prepMaxSkillTiles,
     prepStuckPenalty: state.prepStuckPenalty,
     prepNonStopMode: state.prepNonStopMode,
     prepDesiredSkillCost: state.prepDesiredSkillCost,
@@ -1555,6 +1567,10 @@ function applySettingsPayload(payload, { persist = true } = {}) {
   state.prepSkillTileSpawnIntervalMs = Math.max(
     1000,
     Math.min(60000, Math.floor(Number(payload.prepSkillTileSpawnIntervalMs ?? SKILL_TILE_SPAWN_INTERVAL_MS) / 1000) * 1000),
+  );
+  state.prepMaxSkillTiles = Math.max(
+    0,
+    Math.min(64, Math.floor(Number(payload.prepMaxSkillTiles ?? DEFAULT_MAX_SKILL_TILES))),
   );
   state.prepStuckPenalty = Math.max(
     0,
@@ -1747,6 +1763,14 @@ function commitSkillTileSpawnInterval() {
     return;
   }
   previewSkillTileSpawnInterval(skillTileIntervalInputEl.value);
+}
+
+function previewMaxSkillTiles(value) {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return;
+  state.prepMaxSkillTiles = Math.max(0, Math.min(64, Math.floor(parsed)));
+  renderSkillTileSettings();
+  persistSettingsToStorage();
 }
 
 function previewDesiredSkillCost(value) {
@@ -2839,10 +2863,17 @@ function maybeSpawnSpecialTiles() {
 }
 
 function spawnSkillTiles() {
+  const remainingCapacity = Math.max(0, state.prepMaxSkillTiles - state.skillTiles.size);
+  if (remainingCapacity <= 0) return;
   const availableTiles = getAvailableSkillTileKeys();
   if (!availableTiles.length) return;
 
-  const spawnCount = Math.min(SKILL_TILE_SPAWN_COUNT, availableTiles.length, SKILL_TILE_TYPES.length);
+  const spawnCount = Math.min(
+    SKILL_TILE_SPAWN_COUNT,
+    remainingCapacity,
+    availableTiles.length,
+    SKILL_TILE_TYPES.length,
+  );
   if (!spawnCount) return;
 
   const availableSkills = [...SKILL_TILE_TYPES];
@@ -3775,6 +3806,9 @@ skillTileIntervalInputEl?.addEventListener('input', (event) => {
 });
 skillTileIntervalInputEl?.addEventListener('blur', () => {
   commitSkillTileSpawnInterval();
+});
+skillTileMaxInputEl?.addEventListener('input', (event) => {
+  previewMaxSkillTiles(event.target.value);
 });
 stuckPenaltyInputEl?.addEventListener('input', (event) => {
   const digitsOnly = event.target.value.replace(/[^\d]/g, '');
