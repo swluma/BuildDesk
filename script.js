@@ -6,6 +6,8 @@ const MAX_GAME_DURATION = 600;
 const DEFAULT_SPECIAL_SPAWN_CHANCE = 0.05;
 const DEFAULT_STUCK_PENALTY = 0.25;
 const SPECIAL_TILE_COUNT = 3;
+const SKILL_TILE_SPAWN_INTERVAL_MS = 10000;
+const SKILL_TILE_SPAWN_COUNT = 2;
 const RESUME_COUNTDOWN = 3;
 const INVALID_FLASH_MS = 800;
 const SUCCESS_FLASH_MS = 700;
@@ -113,6 +115,12 @@ const PLAYER_COLOR_THEMES = [
     desiredColor: 'linear-gradient(180deg, #ffc8b2 0%, #ff7a4f 100%)',
     glowColor: '255, 122, 79',
   },
+];
+
+const SKILL_TILE_TYPES = [
+  { id: 'red', label: 'Red Skill', color: '#ff5a6b' },
+  { id: 'blue', label: 'Blue Skill', color: '#4da3ff' },
+  { id: 'green', label: 'Green Skill', color: '#54db7d' },
 ];
 
 const SHAPES = [
@@ -282,6 +290,8 @@ const state = {
   boardCells: [],
   activeDrags: new Map(),
   specialTiles: new Set(),
+  skillTiles: new Map(),
+  ownedSkills: [null, null],
   desiredPieces: [],
   customShapes: [],
   allowedShapeIds: new Set(),
@@ -308,6 +318,7 @@ const state = {
   pauseHandle: null,
   skillUiHandle: null,
   boardMetrics: null,
+  skillTileSpawnElapsedMs: 0,
   scorePopupHandle: null,
   jamPenaltyPopupHandles: [null, null],
   computerPlayers: [false, false],
@@ -532,9 +543,12 @@ function resetState() {
   state.scores = [0, 0];
   state.racks = [[], []];
   state.specialTiles = new Set();
+  state.skillTiles = new Map();
+  state.ownedSkills = [null, null];
   state.timeLeft = state.prepDuration;
   state.gameActive = false;
   state.manualPauseActive = false;
+  state.skillTileSpawnElapsedMs = 0;
   clearActiveDrags();
   if (state.timerHandle) clearInterval(state.timerHandle);
   if (state.pauseHandle) clearInterval(state.pauseHandle);
@@ -1116,14 +1130,29 @@ function renderBoard() {
   for (let y = 0; y < BOARD_SIZE; y += 1) {
     for (let x = 0; x < BOARD_SIZE; x += 1) {
       const cellEl = state.boardCells[y][x];
-      cellEl.classList.remove('clearing', 'ghost-valid', 'ghost-invalid', 'special-spawn');
-      cellEl.classList.toggle('special-tile', state.specialTiles.has(`${x},${y}`));
+      const cellKey = `${x},${y}`;
+      const skillTile = state.skillTiles.get(cellKey) || null;
+      cellEl.classList.remove(
+        'clearing',
+        'ghost-valid',
+        'ghost-invalid',
+        'special-spawn',
+        'skill-spawn',
+        'special-tile',
+        'skill-tile',
+        'skill-red',
+        'skill-blue',
+        'skill-green',
+      );
+      cellEl.classList.toggle('special-tile', state.specialTiles.has(cellKey));
+      if (skillTile) cellEl.classList.add('skill-tile', `skill-${skillTile.id}`);
       cellEl.innerHTML = '';
       const cellState = state.board[y][x];
       if (cellState) {
         const fill = document.createElement('div');
         fill.className = 'board-cell-fill';
-        if (state.specialTiles.has(`${x},${y}`)) fill.classList.add('on-special-tile');
+        if (state.specialTiles.has(cellKey)) fill.classList.add('on-special-tile');
+        if (skillTile) fill.classList.add('on-skill-tile');
         fill.style.background = cellState.previewColor;
         fill.style.boxShadow = getPieceGlowStyle(cellState, { scale: 0.8 });
         cellEl.appendChild(fill);
@@ -1903,6 +1932,18 @@ function specialTileKey(x, y) {
   return `${x},${y}`;
 }
 
+function getAvailableSkillTileKeys() {
+  const availableTiles = [];
+  for (let y = 0; y < BOARD_SIZE; y += 1) {
+    for (let x = 0; x < BOARD_SIZE; x += 1) {
+      const key = specialTileKey(x, y);
+      if (state.specialTiles.has(key) || state.skillTiles.has(key)) continue;
+      availableTiles.push(key);
+    }
+  }
+  return availableTiles;
+}
+
 function getClearInfo() {
   const rows = [];
   const cols = [];
@@ -2302,6 +2343,18 @@ function animateSpecialTileSpawn(tileKeys) {
   });
 }
 
+function animateSkillTileSpawn(tileKeys) {
+  tileKeys.forEach((key) => {
+    const [x, y] = key.split(',').map(Number);
+    const cellEl = state.boardCells?.[y]?.[x];
+    if (!cellEl) return;
+    cellEl.classList.remove('skill-spawn');
+    void cellEl.offsetWidth;
+    cellEl.classList.add('skill-spawn');
+    setTimeout(() => cellEl.classList.remove('skill-spawn'), 720);
+  });
+}
+
 function renderSpawnedSpecialTiles(tileKeys) {
   tileKeys.forEach((key) => {
     const [x, y] = key.split(',').map(Number);
@@ -2319,7 +2372,7 @@ function maybeSpawnSpecialTiles() {
   for (let y = 0; y < BOARD_SIZE; y += 1) {
     for (let x = 0; x < BOARD_SIZE; x += 1) {
       const key = specialTileKey(x, y);
-      if (!state.specialTiles.has(key)) availableTiles.push(key);
+      if (!state.specialTiles.has(key) && !state.skillTiles.has(key)) availableTiles.push(key);
     }
   }
   if (!availableTiles.length) return;
@@ -2334,6 +2387,36 @@ function maybeSpawnSpecialTiles() {
   renderSpawnedSpecialTiles(spawnedTiles);
   animateSpecialTileSpawn(spawnedTiles);
   renderSpecialSlot();
+}
+
+function spawnSkillTiles() {
+  const availableTiles = getAvailableSkillTileKeys();
+  if (!availableTiles.length) return;
+
+  const spawnCount = Math.min(SKILL_TILE_SPAWN_COUNT, availableTiles.length, SKILL_TILE_TYPES.length);
+  if (!spawnCount) return;
+
+  const availableSkills = [...SKILL_TILE_TYPES];
+  const spawnedTiles = [];
+  for (let i = 0; i < spawnCount; i += 1) {
+    const skillIndex = Math.floor(Math.random() * availableSkills.length);
+    const [skill] = availableSkills.splice(skillIndex, 1);
+    const tileIndex = Math.floor(Math.random() * availableTiles.length);
+    const [tileKey] = availableTiles.splice(tileIndex, 1);
+    state.skillTiles.set(tileKey, skill);
+    spawnedTiles.push(tileKey);
+  }
+
+  renderBoard();
+  animateSkillTileSpawn(spawnedTiles);
+}
+
+function updateSkillTileSpawns(elapsedMs) {
+  state.skillTileSpawnElapsedMs += elapsedMs;
+  while (state.skillTileSpawnElapsedMs >= SKILL_TILE_SPAWN_INTERVAL_MS) {
+    state.skillTileSpawnElapsedMs -= SKILL_TILE_SPAWN_INTERVAL_MS;
+    spawnSkillTiles();
+  }
 }
 
 function refillSource(source) {
@@ -2476,6 +2559,8 @@ function quitPausedGame() {
 function clearBoardAndRefreshPieces() {
   state.board = Array.from({ length: BOARD_SIZE }, () => Array.from({ length: BOARD_SIZE }, () => null));
   state.specialTiles = new Set();
+  state.skillTiles = new Map();
+  state.skillTileSpawnElapsedMs = 0;
   fillAllRacks();
   renderBoard();
   renderRacks();
@@ -2548,6 +2633,7 @@ function startTimerLoop() {
   state.timerHandle = setInterval(() => {
     if (!state.gameActive) return;
     applyIdlePenalties();
+    updateSkillTileSpawns(1000);
     state.timeLeft -= 1;
     updateTimer();
     if (state.timeLeft <= 0) endGame();

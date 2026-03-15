@@ -19,6 +19,10 @@ Implemented assumptions
    and the game resumes after a visible countdown.
 4. After a line clear, there is a 5% chance that orange special tiles appear on the board.
    Clearing lines through blocks on those tiles doubles the gained clear score, and the used tiles revert to normal.
+5. Skill tiles are separate from orange special tiles.
+   - Every 10 seconds during active gameplay, 2 skill tiles spawn on random different board cells
+   - The 2 spawned skill tiles use different skill colors each time: red, blue, and green are the 3 prepared skill types
+   - Skill tiles do not currently grant or consume player skills yet; this update only adds the board spawn system and visuals
 
 Mobile UX notes
 ---------------
