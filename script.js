@@ -2306,6 +2306,18 @@ function canPlacePieceOnBoard(board, piece, x, y) {
   });
 }
 
+function getComputerSkillGainValue(player, consumedSkillTiles = []) {
+  if (state.activeSkillEffects[player] || !consumedSkillTiles.length) return 0;
+  const latestSkill = consumedSkillTiles[consumedSkillTiles.length - 1];
+  if (!latestSkill) return 0;
+  const skillValues = {
+    red: 3,
+    blue: 3,
+    green: 3,
+  };
+  return skillValues[latestSkill.skillId] || consumedSkillTiles.length;
+}
+
 function getClearInfoForBoard(board) {
   const rows = [];
   const cols = [];
@@ -2418,6 +2430,8 @@ function evaluatePlacement(piece, x, y, {
     immediateScore: 1 + scoreResult.points,
     lineCount: scoreResult.lineCount,
     specialCount: scoreResult.consumedSpecialTiles.length,
+    skillGainCount: state.activeSkillEffects[piece.player] ? 0 : scoreResult.consumedSkillTiles.length,
+    skillGainValue: getComputerSkillGainValue(piece.player, scoreResult.consumedSkillTiles),
     occupiedCells,
     futurePlacements,
   };
@@ -2440,6 +2454,7 @@ function compareComputerMoves(a, b, config) {
     return (
       b.immediateScore - a.immediateScore
       || b.lineCount - a.lineCount
+      || b.skillGainValue - a.skillGainValue
       || b.specialCount - a.specialCount
       || b.futurePlacements - a.futurePlacements
       || a.occupiedCells - b.occupiedCells
@@ -2451,8 +2466,10 @@ function compareComputerMoves(a, b, config) {
   return (
     b.immediateScore - a.immediateScore
     || b.lineCount - a.lineCount
+    || (config.selection === 'hard' ? b.skillGainValue - a.skillGainValue : 0)
     || b.futurePlacements - a.futurePlacements
     || b.specialCount - a.specialCount
+    || b.skillGainCount - a.skillGainCount
     || a.occupiedCells - b.occupiedCells
     || b.piece.cells.length - a.piece.cells.length
     || a.y - b.y
@@ -2526,6 +2543,52 @@ function getComputerMovePlan(player) {
   if (!skillMove) return regularMove;
   if (!regularMove) return skillMove;
   return compareComputerMoves(skillMove, regularMove, config) < 0 ? skillMove : regularMove;
+}
+
+function findBestAreaClearTarget(player) {
+  let bestTarget = null;
+  for (let y = 0; y < BOARD_SIZE; y += 1) {
+    for (let x = 0; x < BOARD_SIZE; x += 1) {
+      const removedBlocks = getAreaClearCells(x, y).reduce((total, cell) => (
+        state.board[cell.y][cell.x] ? total + 1 : total
+      ), 0);
+      if (!bestTarget || removedBlocks > bestTarget.removedBlocks) {
+        bestTarget = { x, y, removedBlocks };
+      }
+    }
+  }
+  return bestTarget;
+}
+
+function maybeUseComputerOwnedSkill(player) {
+  const ownedSkillId = state.ownedSkills[player];
+  if (!ownedSkillId) return false;
+  if (!state.gameActive || !isComputerPlayer(player)) return false;
+
+  const config = getComputerDifficultyConfig(player);
+  if (ownedSkillId === 'red') {
+    return activateScoreBoostSkill(player, { allowComputer: true });
+  }
+  if (ownedSkillId === 'blue') {
+    const targetPlayer = player === 0 ? 1 : 0;
+    if (isRackSlotBlocked(targetPlayer, MAX_RACK - 1)) return false;
+    if (!state.racks[targetPlayer][MAX_RACK - 1]) return false;
+    return activatePieceBlockSkill(player, { allowComputer: true });
+  }
+  if (ownedSkillId === 'green') {
+    const bestTarget = findBestAreaClearTarget(player);
+    if (!bestTarget) return false;
+    const thresholdByDifficulty = {
+      easy: 4,
+      normal: 3,
+      hard: 2,
+      insane: 1,
+    };
+    const threshold = thresholdByDifficulty[config.selection] ?? 3;
+    if (bestTarget.removedBlocks < threshold) return false;
+    return activateAreaClearSkill(player, bestTarget.x, bestTarget.y, { allowComputer: true });
+  }
+  return false;
 }
 
 function getPopupAnchorCell(piece, x, y) {
@@ -2683,8 +2746,9 @@ function getAreaClearCells(centerX, centerY) {
   return cells;
 }
 
-function activateAreaClearSkill(player, centerX, centerY) {
+function activateAreaClearSkill(player, centerX, centerY, { allowComputer = false } = {}) {
   if (!state.gameActive) return false;
+  if (!allowComputer && isComputerPlayer(player)) return false;
   if (state.ownedSkills[player] !== 'green') return false;
 
   const affectedCells = getAreaClearCells(centerX, centerY);
@@ -2706,9 +2770,9 @@ function activateAreaClearSkill(player, centerX, centerY) {
   return true;
 }
 
-function activateScoreBoostSkill(player) {
+function activateScoreBoostSkill(player, { allowComputer = false } = {}) {
   if (!state.gameActive) return false;
-  if (isComputerPlayer(player)) return false;
+  if (!allowComputer && isComputerPlayer(player)) return false;
   if (state.ownedSkills[player] !== 'red') return false;
   if (state.activeSkillEffects[player]) return false;
 
@@ -2722,9 +2786,9 @@ function activateScoreBoostSkill(player) {
   return true;
 }
 
-function activatePieceBlockSkill(player) {
+function activatePieceBlockSkill(player, { allowComputer = false } = {}) {
   if (!state.gameActive) return false;
-  if (isComputerPlayer(player)) return false;
+  if (!allowComputer && isComputerPlayer(player)) return false;
   if (state.ownedSkills[player] !== 'blue') return false;
   if (state.activeSkillEffects[player]) return false;
 
@@ -2932,6 +2996,7 @@ function scheduleComputerMove(player = null) {
 
 function runComputerTurn(player) {
   if (!state.gameActive || !isComputerPlayer(player)) return;
+  maybeUseComputerOwnedSkill(player);
   const move = getComputerMovePlan(player);
   if (!move) return;
 
