@@ -8,6 +8,7 @@ const DEFAULT_STUCK_PENALTY = 0.25;
 const SPECIAL_TILE_COUNT = 3;
 const SKILL_TILE_SPAWN_INTERVAL_MS = 10000;
 const SKILL_TILE_SPAWN_COUNT = 2;
+const SCORE_BOOST_DURATION_MS = 10000;
 const RESUME_COUNTDOWN = 3;
 const INVALID_FLASH_MS = 800;
 const SUCCESS_FLASH_MS = 700;
@@ -294,6 +295,7 @@ const state = {
   specialTiles: new Set(),
   skillTiles: new Map(),
   ownedSkills: [null, null],
+  activeSkillEffects: [null, null],
   desiredPieces: [],
   customShapes: [],
   allowedShapeIds: new Set(),
@@ -547,6 +549,7 @@ function resetState() {
   state.specialTiles = new Set();
   state.skillTiles = new Map();
   state.ownedSkills = [null, null];
+  state.activeSkillEffects = [null, null];
   state.timeLeft = state.prepDuration;
   state.gameActive = false;
   state.manualPauseActive = false;
@@ -1105,6 +1108,32 @@ function getOwnedSkillLabel(player) {
   return SKILL_TILE_TYPES.find((skill) => skill.id === ownedSkillId)?.label || 'None';
 }
 
+function getActiveSkillEffect(player) {
+  return state.activeSkillEffects[player];
+}
+
+function getOwnedSkillDisplay(player) {
+  const effect = getActiveSkillEffect(player);
+  if (effect?.skillId === 'red') {
+    return {
+      skillId: 'red',
+      label: 'Score Boost',
+      sublabel: `+${effect.accumulated}`,
+      detail: `${Math.max(0, effect.remainingMs / 1000).toFixed(1)}s`,
+      mode: 'active',
+    };
+  }
+
+  const ownedSkillId = state.ownedSkills[player];
+  return {
+    skillId: ownedSkillId,
+    label: getOwnedSkillLabel(player),
+    sublabel: null,
+    detail: null,
+    mode: 'owned',
+  };
+}
+
 function createOwnedSkillHandle(player, ownedSkillId) {
   const handleEl = document.createElement('div');
   handleEl.className = `owned-skill-handle skill-${ownedSkillId}`;
@@ -1123,18 +1152,46 @@ function createOwnedSkillHandle(player, ownedSkillId) {
   return handleEl;
 }
 
+function createOwnedSkillAction(player, ownedSkillId) {
+  const buttonEl = document.createElement('button');
+  buttonEl.type = 'button';
+  buttonEl.className = `owned-skill-action skill-${ownedSkillId}`;
+  buttonEl.textContent = ownedSkillId === 'red' ? 'Activate' : 'Use';
+  buttonEl.disabled = !state.gameActive || isComputerPlayer(player);
+  buttonEl.addEventListener('click', () => {
+    if (ownedSkillId === 'red') activateScoreBoostSkill(player);
+  });
+  return buttonEl;
+}
+
 function renderOwnedSkills() {
   ownedSkillEls.forEach((el, player) => {
     if (!el) return;
     const boxEl = ownedSkillBoxEls[player];
     if (!boxEl) return;
-    const ownedSkillId = state.ownedSkills[player];
-    el.textContent = getOwnedSkillLabel(player);
-    el.dataset.skill = ownedSkillId || 'none';
-    boxEl.dataset.skill = ownedSkillId || 'none';
+    const display = getOwnedSkillDisplay(player);
+    const { skillId, label, sublabel, detail, mode } = display;
+    el.textContent = label;
+    el.dataset.skill = skillId || 'none';
+    boxEl.dataset.skill = skillId || 'none';
+    boxEl.dataset.mode = mode;
     boxEl.querySelector('.owned-skill-handle')?.remove();
-    if (ownedSkillId === 'green') {
-      boxEl.appendChild(createOwnedSkillHandle(player, ownedSkillId));
+    boxEl.querySelector('.owned-skill-action')?.remove();
+    boxEl.querySelector('.owned-skill-meta')?.remove();
+    if (sublabel || detail) {
+      const metaEl = document.createElement('div');
+      metaEl.className = 'owned-skill-meta';
+      metaEl.innerHTML = `
+        ${sublabel ? `<span class="owned-skill-copy">${sublabel}</span>` : ''}
+        ${detail ? `<span class="owned-skill-timer">${detail}</span>` : ''}
+      `;
+      boxEl.appendChild(metaEl);
+    }
+    if (skillId === 'green' && mode === 'owned') {
+      boxEl.appendChild(createOwnedSkillHandle(player, skillId));
+    }
+    if (skillId === 'red' && mode === 'owned') {
+      boxEl.appendChild(createOwnedSkillAction(player, skillId));
     }
   });
 }
@@ -1143,6 +1200,7 @@ function startSkillUiLoop() {
   if (state.skillUiHandle) clearInterval(state.skillUiHandle);
   state.skillUiHandle = setInterval(() => {
     renderSkillButtons();
+    renderOwnedSkills();
   }, 100);
 }
 
@@ -1215,6 +1273,17 @@ function updateScores() {
   });
   renderOwnedSkills();
   renderSkillButtons();
+}
+
+function addPoints(player, points, { copyable = true } = {}) {
+  if (!Number.isFinite(points) || points === 0) return 0;
+  state.scores[player] += points;
+  const effect = getActiveSkillEffect(player);
+  if (copyable && points > 0 && effect?.skillId === 'red') {
+    effect.accumulated += points;
+  }
+  updateScores();
+  return points;
 }
 
 function renderPauseButton() {
@@ -2473,6 +2542,33 @@ function showJamPenaltyPopup(player, percentLost, pointsLost) {
   }, 3000);
 }
 
+function showScoreBoostPayoutPopup(player, points) {
+  const scoreBoxEl = scoreBoxEls[player];
+  if (!scoreBoxEl || points <= 0) return;
+
+  scoreBoxEl.querySelector('.score-boost-popup')?.remove();
+  const popupEl = document.createElement('div');
+  popupEl.className = 'score-boost-popup';
+  if (player === 0 && !app.classList.contains('vs-computer-mode')) {
+    popupEl.classList.add('player-top-penalty');
+  }
+
+  const pointsEl = document.createElement('div');
+  pointsEl.className = 'score-boost-points';
+  pointsEl.textContent = `+${points}`;
+
+  const labelEl = document.createElement('div');
+  labelEl.className = 'score-boost-label';
+  labelEl.textContent = 'Score Boost';
+
+  popupEl.append(pointsEl, labelEl);
+  scoreBoxEl.appendChild(popupEl);
+
+  setTimeout(() => {
+    popupEl.remove();
+  }, 1800);
+}
+
 function getAreaClearCells(centerX, centerY) {
   const cells = [];
   for (let y = centerY - 1; y <= centerY + 1; y += 1) {
@@ -2498,16 +2594,47 @@ function activateAreaClearSkill(player, centerX, centerY) {
   });
 
   state.ownedSkills[player] = null;
-  if (removedBlocks > 0) {
-    state.scores[player] += removedBlocks;
-  }
+  if (removedBlocks > 0) addPoints(player, removedBlocks);
 
   renderBoard();
   renderRacks();
-  updateScores();
   syncIdlePenaltyTracking({ resetPlayers: [player] });
   showAreaClearPopup(removedBlocks, { x: centerX, y: centerY }, player);
   return true;
+}
+
+function activateScoreBoostSkill(player) {
+  if (!state.gameActive) return false;
+  if (isComputerPlayer(player)) return false;
+  if (state.ownedSkills[player] !== 'red') return false;
+  if (state.activeSkillEffects[player]) return false;
+
+  state.ownedSkills[player] = null;
+  state.activeSkillEffects[player] = {
+    skillId: 'red',
+    accumulated: 0,
+    remainingMs: SCORE_BOOST_DURATION_MS,
+  };
+  renderOwnedSkills();
+  return true;
+}
+
+function updateActiveSkillEffects(elapsedMs) {
+  for (let player = 0; player < state.activeSkillEffects.length; player += 1) {
+    const effect = state.activeSkillEffects[player];
+    if (!effect) continue;
+    effect.remainingMs = Math.max(0, effect.remainingMs - elapsedMs);
+    if (effect.remainingMs > 0) continue;
+
+    const payout = effect.accumulated;
+    state.activeSkillEffects[player] = null;
+    if (payout > 0) {
+      addPoints(player, payout, { copyable: false });
+      showScoreBoostPayoutPopup(player, payout);
+    } else {
+      renderOwnedSkills();
+    }
+  }
 }
 
 function awardOwnedSkill(player, consumedSkillTiles = []) {
@@ -2700,19 +2827,17 @@ function placeDraggedPiece(drag) {
   const { x, y } = drag.candidate;
   const scoringPlayer = drag.source.player;
   putPieceOnBoard(drag.piece, x, y);
-  state.scores[scoringPlayer] += 1;
+  addPoints(scoringPlayer, 1);
   renderBoard();
   renderRacks();
   renderSpecialSlot();
   flashSuccess(drag.originEl);
-  updateScores();
 
   const clearInfo = getClearInfo();
   if (clearInfo.rows.length || clearInfo.cols.length) {
     const scoreResult = scoreForClear(clearInfo.rows, clearInfo.cols);
     awardOwnedSkill(scoringPlayer, scoreResult.consumedSkillTiles);
-    state.scores[scoringPlayer] += scoreResult.points;
-    updateScores();
+    addPoints(scoringPlayer, scoreResult.points);
     showScorePopup(scoreResult, getPopupAnchorCell(drag.piece, x, y), scoringPlayer);
     animateAndClear(
       clearInfo.rows,
@@ -2861,6 +2986,7 @@ function startTimerLoop() {
   state.timerHandle = setInterval(() => {
     if (!state.gameActive) return;
     applyIdlePenalties();
+    updateActiveSkillEffects(1000);
     updateSkillTileSpawns(1000);
     state.timeLeft -= 1;
     updateTimer();
