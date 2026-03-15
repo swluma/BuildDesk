@@ -1146,7 +1146,7 @@ function getOwnedSkillDisplay(player) {
     return {
       skillId: 'blue',
       label: 'Piece Block',
-      sublabel: 'Enemy Right',
+      sublabel: null,
       detail: `${Math.max(0, effect.remainingMs / 1000).toFixed(1)}s`,
       mode: 'active',
     };
