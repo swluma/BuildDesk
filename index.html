@@ -163,6 +163,7 @@
         </label>
       </div>
       <button id="special-spawn-btn" class="secondary-btn prep-setting-btn" type="button">Special Tile Chance: 5%</button>
+      <button id="skill-tile-settings-btn" class="secondary-btn prep-setting-btn" type="button">Skill Tiles: 10s</button>
       <button id="stuck-penalty-btn" class="secondary-btn prep-setting-btn" type="button">Jam Penalty: 25%</button>
       <button id="non-stop-mode-btn" class="secondary-btn prep-setting-btn mode-btn" type="button">Non-Stop Mode: Off</button>
       <button id="desired-skill-settings-btn" class="secondary-btn prep-setting-btn" type="button">Desired Skill: On · Cost 15 · 15s</button>
@@ -516,6 +517,36 @@
       <div class="special-spawn-hint">0 disables spawning. 100 guarantees a spawn check succeeds.</div>
       <div class="special-spawn-actions">
         <button id="special-spawn-close" class="primary-btn" type="button">Done</button>
+      </div>
+    </div>
+  </div>
+
+  <div
+    id="skill-tile-settings-modal"
+    class="overlay hidden skill-tile-settings-modal"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="skill-tile-settings-modal-title"
+  >
+    <div class="overlay-card skill-tile-settings-card">
+      <h2 id="skill-tile-settings-modal-title">SKILL TILES</h2>
+      <p class="special-spawn-copy">Choose how often skill tiles spawn during the match.</p>
+      <label class="special-spawn-input-wrap" for="skill-tile-interval-input">
+        <input
+          id="skill-tile-interval-input"
+          class="special-spawn-input"
+          type="number"
+          min="1"
+          max="60"
+          step="1"
+          value="10"
+          inputmode="numeric"
+        />
+        <span class="special-spawn-unit">sec</span>
+      </label>
+      <div class="special-spawn-hint">Every spawn creates 2 different skill tiles on random cells.</div>
+      <div class="special-spawn-actions">
+        <button id="skill-tile-settings-close" class="primary-btn" type="button">Done</button>
       </div>
     </div>
   </div>
