@@ -2763,6 +2763,7 @@ function updateActiveSkillEffects(elapsedMs) {
 
 function awardOwnedSkill(player, consumedSkillTiles = []) {
   if (!consumedSkillTiles.length) return;
+  if (state.activeSkillEffects[player]) return;
   const latestSkill = consumedSkillTiles[consumedSkillTiles.length - 1];
   state.ownedSkills[player] = latestSkill.skillId;
 }
