@@ -136,27 +136,32 @@ body {
 .score-row {
   min-height: 0;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) clamp(88px, 16vw, 116px);
+  grid-template-columns: minmax(98px, 1.2fr) fit-content(64px) clamp(88px, 16vw, 116px);
   gap: 6px;
   align-items: stretch;
 }
 
 .app:not(.vs-computer-mode) .player-top .score-row {
-  grid-template-columns: clamp(88px, 16vw, 116px) minmax(0, 1fr);
+  grid-template-columns: clamp(88px, 16vw, 116px) fit-content(64px) minmax(98px, 1.2fr);
 }
 
 .app:not(.vs-computer-mode) .player-top .score-box,
+.app:not(.vs-computer-mode) .player-top .owned-skill-box,
 .app:not(.vs-computer-mode) .player-top .score-skill-btn {
   transform: rotate(180deg);
   transform-origin: center;
 }
 
 .app:not(.vs-computer-mode) .player-top .score-row .score-box {
-  order: 2;
+  order: 3;
 }
 
 .app:not(.vs-computer-mode) .player-top .score-row .score-skill-btn {
   order: 1;
+}
+
+.app:not(.vs-computer-mode) .player-top .score-row .owned-skill-box {
+  order: 2;
 }
 
 .player-header {
@@ -262,6 +267,49 @@ body {
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.05),
     0 0 18px rgba(255, 215, 111, 0.18);
+}
+
+.owned-skill-box {
+  min-width: 0;
+  display: grid;
+  align-content: center;
+  gap: 1px;
+  justify-items: center;
+  padding: 5px 6px;
+  border-radius: 14px;
+  background: rgba(10, 20, 30, 0.9);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.04),
+    0 8px 18px rgba(0, 0, 0, 0.14);
+}
+
+.owned-skill-label {
+  font-size: clamp(0.44rem, 1.05vw, 0.52rem);
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  color: rgba(142, 164, 182, 0.88);
+}
+
+.owned-skill-value {
+  min-width: 0;
+  font-size: clamp(0.54rem, 1.2vw, 0.66rem);
+  font-weight: 800;
+  line-height: 1.05;
+  color: #f4fbff;
+  text-align: center;
+}
+
+.owned-skill-value[data-skill="red"] {
+  color: var(--skill-red);
+}
+
+.owned-skill-value[data-skill="blue"] {
+  color: var(--skill-blue);
+}
+
+.owned-skill-value[data-skill="green"] {
+  color: var(--skill-green);
 }
 
 .piece-rack {
@@ -2688,7 +2736,7 @@ body {
   }
 
   .score-row {
-    grid-template-columns: minmax(0, 1fr) clamp(82px, 15vw, 104px);
+    grid-template-columns: minmax(90px, 1.15fr) fit-content(58px) clamp(82px, 15vw, 104px);
     gap: 5px;
   }
 
@@ -2715,11 +2763,6 @@ body {
 
   .player-header {
     padding: 0 2px;
-  }
-
-  .score-box {
-    min-height: clamp(56px, 10vh, 88px);
-    padding: 6px 8px;
   }
 
   .skill-btn {
@@ -2758,7 +2801,7 @@ body {
 
 @media (max-width: 640px) {
   .score-row {
-    grid-template-columns: minmax(0, 1fr) 82px;
+    grid-template-columns: minmax(88px, 1.1fr) fit-content(56px) 82px;
     gap: 4px;
   }
 

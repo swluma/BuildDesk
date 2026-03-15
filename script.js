@@ -118,9 +118,9 @@ const PLAYER_COLOR_THEMES = [
 ];
 
 const SKILL_TILE_TYPES = [
-  { id: 'red', label: 'Red Skill', color: '#ff5a6b' },
-  { id: 'blue', label: 'Blue Skill', color: '#4da3ff' },
-  { id: 'green', label: 'Green Skill', color: '#54db7d' },
+  { id: 'red', label: 'Score Boost', color: '#ff5a6b' },
+  { id: 'blue', label: 'Piece Block', color: '#4da3ff' },
+  { id: 'green', label: 'Area Clear', color: '#54db7d' },
 ];
 
 const SHAPES = [
@@ -162,6 +162,7 @@ const scorePopupLayerEl = document.getElementById('score-popup-layer');
 const rackEls = [document.getElementById('rack-0'), document.getElementById('rack-1')];
 const scoreEls = [document.getElementById('score-0'), document.getElementById('score-1')];
 const scoreBoxEls = scoreEls.map((el) => el?.parentElement || null);
+const ownedSkillEls = [document.getElementById('owned-skill-0'), document.getElementById('owned-skill-1')];
 const timerEl = document.getElementById('timer');
 const pauseBtnEl = document.getElementById('pause-btn');
 const overlayEl = document.getElementById('overlay');
@@ -1098,6 +1099,20 @@ function renderSkillButtons() {
   });
 }
 
+function getOwnedSkillLabel(player) {
+  const ownedSkillId = state.ownedSkills[player];
+  return SKILL_TILE_TYPES.find((skill) => skill.id === ownedSkillId)?.label || 'None';
+}
+
+function renderOwnedSkills() {
+  ownedSkillEls.forEach((el, player) => {
+    if (!el) return;
+    const ownedSkillId = state.ownedSkills[player];
+    el.textContent = getOwnedSkillLabel(player);
+    el.dataset.skill = ownedSkillId || 'none';
+  });
+}
+
 function startSkillUiLoop() {
   if (state.skillUiHandle) clearInterval(state.skillUiHandle);
   state.skillUiHandle = setInterval(() => {
@@ -1172,6 +1187,7 @@ function updateScores() {
       scoreBoxEl.classList.toggle('leader', leaderCount === 1 && score === highestScore);
     }
   });
+  renderOwnedSkills();
   renderSkillButtons();
 }
 
@@ -1974,12 +1990,15 @@ function scoreForClear(rows, cols) {
 
   let baseScore = 0;
   const consumedSpecialTiles = [];
+  const consumedSkillTiles = [];
   clearSet.forEach((key) => {
     const [x, y] = key.split(',').map(Number);
     const cell = state.board[y][x];
     if (!cell) return;
     baseScore += 1;
     if (state.specialTiles.has(key)) consumedSpecialTiles.push(key);
+    const skillTile = state.skillTiles.get(key);
+    if (skillTile) consumedSkillTiles.push({ key, skillId: skillTile.id });
   });
   const lineCount = rows.length + cols.length;
   const specialDoubled = consumedSpecialTiles.length > 0;
@@ -1988,6 +2007,7 @@ function scoreForClear(rows, cols) {
     lineCount,
     specialDoubled,
     consumedSpecialTiles,
+    consumedSkillTiles,
   };
 }
 
@@ -2033,12 +2053,15 @@ function scoreForClearOnBoard(board, specialTiles, rows, cols) {
 
   let baseScore = 0;
   const consumedSpecialTiles = [];
+  const consumedSkillTiles = [];
   clearSet.forEach((key) => {
     const [x, y] = key.split(',').map(Number);
     const cell = board[y][x];
     if (!cell) return;
     baseScore += 1;
     if (specialTiles.has(key)) consumedSpecialTiles.push(key);
+    const skillTile = state.skillTiles.get(key);
+    if (skillTile) consumedSkillTiles.push({ key, skillId: skillTile.id });
   });
 
   const lineCount = rows.length + cols.length;
@@ -2048,6 +2071,7 @@ function scoreForClearOnBoard(board, specialTiles, rows, cols) {
     lineCount,
     specialDoubled,
     consumedSpecialTiles,
+    consumedSkillTiles,
   };
 }
 
@@ -2078,7 +2102,13 @@ function evaluatePlacement(piece, x, y, {
   const clearInfo = getClearInfoForBoard(simulatedBoard);
   const scoreResult = (clearInfo.rows.length || clearInfo.cols.length)
     ? scoreForClearOnBoard(simulatedBoard, specialTiles, clearInfo.rows, clearInfo.cols)
-    : { points: 0, lineCount: 0, specialDoubled: false, consumedSpecialTiles: [] };
+    : {
+      points: 0,
+      lineCount: 0,
+      specialDoubled: false,
+      consumedSpecialTiles: [],
+      consumedSkillTiles: [],
+    };
 
   clearInfo.rows.forEach((row) => {
     for (let col = 0; col < BOARD_SIZE; col += 1) simulatedBoard[row][col] = null;
@@ -2295,7 +2325,13 @@ function showJamPenaltyPopup(player, percentLost, pointsLost) {
   }, 3000);
 }
 
-function animateAndClear(rows, cols, consumedSpecialTiles = []) {
+function awardOwnedSkill(player, consumedSkillTiles = []) {
+  if (!consumedSkillTiles.length) return;
+  const latestSkill = consumedSkillTiles[consumedSkillTiles.length - 1];
+  state.ownedSkills[player] = latestSkill.skillId;
+}
+
+function animateAndClear(rows, cols, consumedSpecialTiles = [], consumedSkillTiles = []) {
   const seen = new Set();
   rows.forEach((y) => {
     for (let x = 0; x < BOARD_SIZE; x += 1) {
@@ -2323,6 +2359,7 @@ function animateAndClear(rows, cols, consumedSpecialTiles = []) {
     for (let y = 0; y < BOARD_SIZE; y += 1) state.board[y][x] = null;
   });
   consumedSpecialTiles.forEach((key) => state.specialTiles.delete(key));
+  consumedSkillTiles.forEach(({ key }) => state.skillTiles.delete(key));
 
   setTimeout(() => {
     renderBoard();
@@ -2488,10 +2525,16 @@ function placeDraggedPiece(drag) {
   const clearInfo = getClearInfo();
   if (clearInfo.rows.length || clearInfo.cols.length) {
     const scoreResult = scoreForClear(clearInfo.rows, clearInfo.cols);
+    awardOwnedSkill(scoringPlayer, scoreResult.consumedSkillTiles);
     state.scores[scoringPlayer] += scoreResult.points;
     updateScores();
     showScorePopup(scoreResult, getPopupAnchorCell(drag.piece, x, y), scoringPlayer);
-    animateAndClear(clearInfo.rows, clearInfo.cols, scoreResult.consumedSpecialTiles);
+    animateAndClear(
+      clearInfo.rows,
+      clearInfo.cols,
+      scoreResult.consumedSpecialTiles,
+      scoreResult.consumedSkillTiles,
+    );
     maybeSpawnSpecialTiles();
   }
 
