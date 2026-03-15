@@ -1378,6 +1378,37 @@ body {
   margin-top: 16px;
 }
 
+.game-description-skill-panel {
+  margin-top: 18px;
+  padding: 14px;
+  border-radius: 18px;
+  background:
+    radial-gradient(circle at top left, rgba(118, 181, 255, 0.08), transparent 34%),
+    radial-gradient(circle at bottom right, rgba(106, 230, 144, 0.08), transparent 32%),
+    rgba(6, 15, 23, 0.78);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.game-description-skill-kicker {
+  font-size: 0.66rem;
+  font-weight: 900;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #9fd7ff;
+}
+
+.game-description-skill-title {
+  margin: 6px 0 0;
+  font-size: 0.92rem;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  color: #f4fbff;
+}
+
+.skill-description-list {
+  margin-top: 12px;
+}
+
 .game-description-item {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
@@ -1432,6 +1463,34 @@ body {
     radial-gradient(circle at left, rgba(134, 197, 255, 0.12), transparent 48%),
     rgba(8, 18, 28, 0.8);
   border-color: rgba(127, 196, 255, 0.18);
+}
+
+.skill-red-tip {
+  background:
+    radial-gradient(circle at left, rgba(255, 108, 128, 0.12), transparent 48%),
+    rgba(8, 18, 28, 0.8);
+  border-color: rgba(255, 122, 136, 0.2);
+}
+
+.skill-blue-tip {
+  background:
+    radial-gradient(circle at left, rgba(108, 183, 255, 0.12), transparent 48%),
+    rgba(8, 18, 28, 0.8);
+  border-color: rgba(108, 183, 255, 0.2);
+}
+
+.skill-green-tip {
+  background:
+    radial-gradient(circle at left, rgba(100, 233, 139, 0.12), transparent 48%),
+    rgba(8, 18, 28, 0.8);
+  border-color: rgba(100, 233, 139, 0.2);
+}
+
+.skill-tile-tip {
+  background:
+    radial-gradient(circle at left, rgba(173, 216, 255, 0.1), transparent 48%),
+    rgba(8, 18, 28, 0.8);
+  border-color: rgba(173, 216, 255, 0.16);
 }
 
 .place-tip {
@@ -1694,6 +1753,123 @@ body {
   inset: 3px;
   border-radius: 999px;
   background: rgba(141, 255, 117, 0.84);
+}
+
+.skill-description-icon {
+  position: relative;
+  width: 46px;
+  height: 40px;
+}
+
+.skill-description-icon-core {
+  position: absolute;
+  inset: 8px;
+  border-radius: 12px;
+}
+
+.score-boost-icon .skill-description-icon-core {
+  background: linear-gradient(180deg, #ff9caa, #de4861);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.24),
+    0 0 14px rgba(255, 108, 128, 0.24);
+}
+
+.skill-tile-icon {
+  display: grid;
+  place-items: center;
+}
+
+.skill-tile-icon-orb {
+  position: absolute;
+  width: 14px;
+  height: 14px;
+  border-radius: 999px;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.26),
+    0 0 12px currentColor;
+}
+
+.skill-tile-icon-orb.red {
+  left: 4px;
+  top: 14px;
+  color: rgba(255, 108, 128, 0.24);
+  background: linear-gradient(180deg, #ff9caa, #de4861);
+}
+
+.skill-tile-icon-orb.blue {
+  right: 4px;
+  top: 14px;
+  color: rgba(108, 183, 255, 0.24);
+  background: linear-gradient(180deg, #9ed0ff, #4d91f1);
+}
+
+.skill-tile-icon-orb.green {
+  left: 16px;
+  top: 2px;
+  color: rgba(100, 233, 139, 0.22);
+  background: linear-gradient(180deg, #99f4bc, #39b66f);
+}
+
+.skill-description-icon-plus {
+  position: absolute;
+  right: -2px;
+  top: -2px;
+  padding: 2px 4px;
+  border-radius: 999px;
+  background: rgba(67, 14, 24, 0.96);
+  border: 1px solid rgba(255, 149, 162, 0.44);
+  font-size: 0.48rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  color: #ffb8c1;
+}
+
+.piece-block-icon-line {
+  position: absolute;
+  left: 2px;
+  right: 2px;
+  top: 14px;
+  height: 10px;
+  border-radius: 999px;
+  background:
+    repeating-linear-gradient(
+      90deg,
+      rgba(255, 227, 130, 0.98) 0 10px,
+      rgba(41, 39, 28, 0.92) 10px 17px
+    );
+  transform: rotate(26deg);
+  box-shadow: 0 0 12px rgba(255, 214, 102, 0.16);
+}
+
+.piece-block-icon-line.second {
+  top: 18px;
+  transform: rotate(-26deg);
+}
+
+.area-clear-icon-grid {
+  position: absolute;
+  inset: 7px;
+  border-radius: 12px;
+  background:
+    linear-gradient(90deg, transparent 31%, rgba(218, 255, 230, 0.22) 31% 35%, transparent 35% 65%, rgba(218, 255, 230, 0.22) 65% 69%, transparent 69%),
+    linear-gradient(180deg, transparent 31%, rgba(218, 255, 230, 0.22) 31% 35%, transparent 35% 65%, rgba(218, 255, 230, 0.22) 65% 69%, transparent 69%),
+    linear-gradient(180deg, #99f4bc, #39b66f);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.24),
+    0 0 14px rgba(100, 233, 139, 0.2);
+}
+
+.area-clear-icon-burst {
+  position: absolute;
+  left: 15px;
+  top: 12px;
+  width: 16px;
+  height: 16px;
+  border-radius: 999px;
+  border: 2px solid rgba(231, 255, 239, 0.88);
+  box-shadow:
+    0 0 0 4px rgba(231, 255, 239, 0.14),
+    0 0 14px rgba(186, 255, 208, 0.18);
 }
 
 .game-description-actions {
