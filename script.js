@@ -1112,6 +1112,14 @@ function getActiveSkillEffect(player) {
   return state.activeSkillEffects[player];
 }
 
+function getIncomingPieceBlockEffect(player) {
+  return state.activeSkillEffects.find((effect) => effect?.skillId === 'blue' && effect.targetPlayer === player) || null;
+}
+
+function isRackSlotBlocked(player, slotIndex) {
+  return Boolean(getIncomingPieceBlockEffect(player)) && slotIndex === MAX_RACK - 1;
+}
+
 function getOwnedSkillDisplay(player) {
   const effect = getActiveSkillEffect(player);
   if (effect?.skillId === 'red') {
@@ -1119,6 +1127,15 @@ function getOwnedSkillDisplay(player) {
       skillId: 'red',
       label: 'Score Boost',
       sublabel: `+${effect.accumulated}`,
+      detail: `${Math.max(0, effect.remainingMs / 1000).toFixed(1)}s`,
+      mode: 'active',
+    };
+  }
+  if (effect?.skillId === 'blue') {
+    return {
+      skillId: 'blue',
+      label: 'Piece Block',
+      sublabel: 'Enemy Right',
       detail: `${Math.max(0, effect.remainingMs / 1000).toFixed(1)}s`,
       mode: 'active',
     };
@@ -1156,10 +1173,11 @@ function createOwnedSkillAction(player, ownedSkillId) {
   const buttonEl = document.createElement('button');
   buttonEl.type = 'button';
   buttonEl.className = `owned-skill-action skill-${ownedSkillId}`;
-  buttonEl.textContent = ownedSkillId === 'red' ? 'Activate' : 'Use';
+  buttonEl.textContent = ownedSkillId === 'green' ? 'Use' : 'Activate';
   buttonEl.disabled = !state.gameActive || isComputerPlayer(player);
   buttonEl.addEventListener('click', () => {
     if (ownedSkillId === 'red') activateScoreBoostSkill(player);
+    if (ownedSkillId === 'blue') activatePieceBlockSkill(player);
   });
   return buttonEl;
 }
@@ -1190,7 +1208,7 @@ function renderOwnedSkills() {
     if (skillId === 'green' && mode === 'owned') {
       boxEl.appendChild(createOwnedSkillHandle(player, skillId));
     }
-    if (skillId === 'red' && mode === 'owned') {
+    if ((skillId === 'red' || skillId === 'blue') && mode === 'owned') {
       boxEl.appendChild(createOwnedSkillAction(player, skillId));
     }
   });
@@ -1211,11 +1229,25 @@ function renderRacks() {
       const canvas = slotEl.querySelector('.piece-canvas');
       const piece = state.racks[player][slotIndex] || null;
       const disabled = isPieceDisabled(piece);
+      const incomingBlockEffect = getIncomingPieceBlockEffect(player);
+      const blockedBySkill = isRackSlotBlocked(player, slotIndex);
       slotEl.dataset.pieceId = piece ? piece.id : '';
       slotEl.classList.toggle('computer-controlled', computerControlled);
-      slotEl.classList.toggle('disabled', disabled || computerControlled);
+      slotEl.classList.toggle('disabled', disabled || computerControlled || blockedBySkill);
+      slotEl.classList.toggle('blocked-by-skill', Boolean(blockedBySkill));
+      slotEl.querySelector('.piece-block-overlay')?.remove();
+      if (blockedBySkill) {
+        const overlayEl = document.createElement('div');
+        overlayEl.className = 'piece-block-overlay';
+        overlayEl.innerHTML = `
+          <div class="piece-block-timer">${Math.max(0, incomingBlockEffect.remainingMs / 1000).toFixed(1)}s</div>
+        `;
+        slotEl.appendChild(overlayEl);
+      }
       renderMiniPiece(canvas, piece, Math.min(slotEl.clientWidth, slotEl.clientHeight));
-      if (piece && !disabled && !computerControlled) attachPiecePointer(slotEl, piece, { sourceType: 'rack', player, slotIndex });
+      if (piece && !disabled && !computerControlled && !blockedBySkill) {
+        attachPiecePointer(slotEl, piece, { sourceType: 'rack', player, slotIndex });
+      }
       else slotEl.onpointerdown = null;
     });
   });
@@ -2066,7 +2098,9 @@ function isPieceDisabled(piece) {
 }
 
 function playerHasPlayablePiece(player) {
-  return state.racks[player].some((piece) => piece && anyPlacementForPiece(piece));
+  return state.racks[player].some((piece, slotIndex) => (
+    piece && !isRackSlotBlocked(player, slotIndex) && anyPlacementForPiece(piece)
+  ));
 }
 
 function syncIdlePenaltyTracking({ resetPlayers = [] } = {}) {
@@ -2409,7 +2443,9 @@ function canUseDesiredSkill(player, { allowComputer = false } = {}) {
 
 function getComputerMovePlan(player) {
   const config = getComputerDifficultyConfig(player);
-  const currentRack = state.racks[player];
+  const currentRack = state.racks[player].map((piece, slotIndex) => (
+    isRackSlotBlocked(player, slotIndex) ? null : piece
+  ));
   const regularMove = pickBestComputerMoveForRack(currentRack, { config, useSkill: false });
   if (!config.allowDesiredSkill || !canUseDesiredSkill(player, { allowComputer: true })) {
     return regularMove;
@@ -2619,22 +2655,43 @@ function activateScoreBoostSkill(player) {
   return true;
 }
 
+function activatePieceBlockSkill(player) {
+  if (!state.gameActive) return false;
+  if (isComputerPlayer(player)) return false;
+  if (state.ownedSkills[player] !== 'blue') return false;
+  if (state.activeSkillEffects[player]) return false;
+
+  state.ownedSkills[player] = null;
+  state.activeSkillEffects[player] = {
+    skillId: 'blue',
+    targetPlayer: player === 0 ? 1 : 0,
+    remainingMs: SCORE_BOOST_DURATION_MS,
+  };
+  renderOwnedSkills();
+  renderRacks();
+  return true;
+}
+
 function updateActiveSkillEffects(elapsedMs) {
+  let blueEffectChanged = false;
   for (let player = 0; player < state.activeSkillEffects.length; player += 1) {
     const effect = state.activeSkillEffects[player];
     if (!effect) continue;
     effect.remainingMs = Math.max(0, effect.remainingMs - elapsedMs);
+    if (effect.skillId === 'blue') blueEffectChanged = true;
     if (effect.remainingMs > 0) continue;
 
     const payout = effect.accumulated;
     state.activeSkillEffects[player] = null;
-    if (payout > 0) {
+    if (effect.skillId === 'red' && payout > 0) {
       addPoints(player, payout, { copyable: false });
       showScoreBoostPayoutPopup(player, payout);
     } else {
       renderOwnedSkills();
     }
+    if (effect.skillId === 'blue') blueEffectChanged = true;
   }
+  if (blueEffectChanged) renderRacks();
 }
 
 function awardOwnedSkill(player, consumedSkillTiles = []) {
