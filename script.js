@@ -163,6 +163,7 @@ const rackEls = [document.getElementById('rack-0'), document.getElementById('rac
 const scoreEls = [document.getElementById('score-0'), document.getElementById('score-1')];
 const scoreBoxEls = scoreEls.map((el) => el?.parentElement || null);
 const ownedSkillEls = [document.getElementById('owned-skill-0'), document.getElementById('owned-skill-1')];
+const ownedSkillBoxEls = ownedSkillEls.map((el) => el?.parentElement || null);
 const timerEl = document.getElementById('timer');
 const pauseBtnEl = document.getElementById('pause-btn');
 const overlayEl = document.getElementById('overlay');
@@ -1104,12 +1105,37 @@ function getOwnedSkillLabel(player) {
   return SKILL_TILE_TYPES.find((skill) => skill.id === ownedSkillId)?.label || 'None';
 }
 
+function createOwnedSkillHandle(player, ownedSkillId) {
+  const handleEl = document.createElement('div');
+  handleEl.className = `owned-skill-handle skill-${ownedSkillId}`;
+  handleEl.textContent = 'Drag';
+  handleEl.setAttribute('role', 'button');
+  handleEl.setAttribute('aria-label', `${getOwnedSkillLabel(player)} skill handle`);
+  handleEl.onpointerdown = (event) => {
+    if (!state.gameActive) return;
+    if (isComputerPlayer(player)) return;
+    if (ownedSkillId !== 'green') return;
+    if (event.button !== undefined && event.button !== 0) return;
+    event.preventDefault();
+    refreshLayoutMetrics();
+    startAreaSkillDrag(event, handleEl, player, ownedSkillId);
+  };
+  return handleEl;
+}
+
 function renderOwnedSkills() {
   ownedSkillEls.forEach((el, player) => {
     if (!el) return;
+    const boxEl = ownedSkillBoxEls[player];
+    if (!boxEl) return;
     const ownedSkillId = state.ownedSkills[player];
     el.textContent = getOwnedSkillLabel(player);
     el.dataset.skill = ownedSkillId || 'none';
+    boxEl.dataset.skill = ownedSkillId || 'none';
+    boxEl.querySelector('.owned-skill-handle')?.remove();
+    if (ownedSkillId === 'green') {
+      boxEl.appendChild(createOwnedSkillHandle(player, ownedSkillId));
+    }
   });
 }
 
@@ -1711,6 +1737,28 @@ function createDragElement(piece, cellSize) {
   return dragEl;
 }
 
+function createAreaSkillDragElement(cellSize) {
+  const dragEl = document.createElement('div');
+  dragEl.className = 'skill-drag-preview';
+  dragEl.style.width = `${cellSize * 3}px`;
+  dragEl.style.height = `${cellSize * 3}px`;
+
+  for (let y = 0; y < 3; y += 1) {
+    for (let x = 0; x < 3; x += 1) {
+      const cellEl = document.createElement('div');
+      cellEl.className = 'skill-drag-cell';
+      cellEl.style.width = `${cellSize - 2}px`;
+      cellEl.style.height = `${cellSize - 2}px`;
+      cellEl.style.left = `${x * cellSize + 1}px`;
+      cellEl.style.top = `${y * cellSize + 1}px`;
+      dragEl.appendChild(cellEl);
+    }
+  }
+
+  document.body.appendChild(dragEl);
+  return dragEl;
+}
+
 function startDrag(event, piece, originEl, source) {
   if (state.activeDrags.has(event.pointerId)) return;
   const sourceRect = originEl.getBoundingClientRect();
@@ -1740,6 +1788,33 @@ function startDrag(event, piece, originEl, source) {
   window.addEventListener('pointercancel', onPointerUp, { passive: false });
 }
 
+function startAreaSkillDrag(event, originEl, player, skillId) {
+  if (state.activeDrags.has(event.pointerId)) return;
+  const cellSize = state.boardMetrics.cellSize;
+  const dragEl = createAreaSkillDragElement(cellSize);
+
+  originEl.classList.add('drag-origin');
+
+  const drag = {
+    pointerId: event.pointerId,
+    kind: 'area-skill',
+    player,
+    skillId,
+    originEl,
+    dragEl,
+    cellSize,
+    candidate: null,
+    valid: false,
+  };
+
+  state.activeDrags.set(event.pointerId, drag);
+  updateDrag(event, drag);
+
+  window.addEventListener('pointermove', onPointerMove, { passive: false });
+  window.addEventListener('pointerup', onPointerUp, { passive: false });
+  window.addEventListener('pointercancel', onPointerUp, { passive: false });
+}
+
 function onPointerMove(event) {
   const drag = state.activeDrags.get(event.pointerId);
   if (!drag) return;
@@ -1749,13 +1824,20 @@ function onPointerMove(event) {
 
 function clearGhostMarks() {
   state.boardCells.flat().forEach((cell) => {
-    cell.classList.remove('ghost-valid', 'ghost-invalid');
+    cell.classList.remove('ghost-valid', 'ghost-invalid', 'skill-target-valid', 'skill-target-center');
   });
 }
 
 function markGhost(drag) {
   clearGhostMarks();
   if (!drag.candidate) return;
+  if (drag.kind === 'area-skill') {
+    getAreaClearCells(drag.candidate.x, drag.candidate.y).forEach(({ x, y }) => {
+      state.boardCells[y][x].classList.add('skill-target-valid');
+    });
+    if (drag.valid) state.boardCells[drag.candidate.y][drag.candidate.x].classList.add('skill-target-center');
+    return;
+  }
   const className = drag.valid ? 'ghost-valid' : 'ghost-invalid';
   drag.piece.cells.forEach(([dx, dy]) => {
     const x = drag.candidate.x + dx;
@@ -1791,6 +1873,29 @@ function findNearbyPlacement(piece, x, y) {
 }
 
 function updateDrag(event, drag) {
+  if (drag.kind === 'area-skill') {
+    const left = event.clientX - drag.cellSize * 1.5;
+    const top = event.clientY - drag.cellSize * 1.5;
+    drag.dragEl.style.left = `${left}px`;
+    drag.dragEl.style.top = `${top}px`;
+
+    const candidate = {
+      x: Math.floor((event.clientX - state.boardMetrics.left) / drag.cellSize),
+      y: Math.floor((event.clientY - state.boardMetrics.top) / drag.cellSize),
+    };
+    drag.candidate = candidate;
+    drag.valid = (
+      candidate.x >= 0
+      && candidate.x < BOARD_SIZE
+      && candidate.y >= 0
+      && candidate.y < BOARD_SIZE
+    );
+    drag.dragEl.classList.toggle('valid', drag.valid);
+    drag.dragEl.classList.toggle('invalid', !drag.valid);
+    markGhost(drag);
+    return;
+  }
+
   const left = event.clientX - drag.pointerOffsetX;
   const top = event.clientY - drag.pointerOffsetY;
   drag.dragEl.style.left = `${left}px`;
@@ -1841,6 +1946,14 @@ function finishDrag(drag) {
   drag.originEl.classList.remove('drag-origin');
   drag.dragEl.remove();
   if (!state.gameActive) return;
+  if (drag.kind === 'area-skill') {
+    if (drag.valid && drag.candidate && drag.skillId === 'green') {
+      activateAreaClearSkill(drag.player, drag.candidate.x, drag.candidate.y);
+    } else {
+      flashInvalid(drag.originEl);
+    }
+    return;
+  }
   if (drag.valid && drag.candidate && canPlacePiece(drag.piece, drag.candidate.x, drag.candidate.y)) {
     placeDraggedPiece(drag);
   } else {
@@ -2290,6 +2403,41 @@ function showScorePopup({ lineCount, points, specialDoubled }, anchorCell, playe
   }, 1000);
 }
 
+function showAreaClearPopup(points, anchorCell, player = null) {
+  if (!state.boardMetrics) refreshLayoutMetrics();
+
+  const popupEl = document.createElement('div');
+  popupEl.className = 'score-popup area-clear-popup';
+  if (player === 0 && !isSingleBottomHumanView()) popupEl.classList.add('player-top-clear');
+
+  const linesEl = document.createElement('div');
+  linesEl.className = 'score-popup-lines';
+  linesEl.textContent = 'Area Clear';
+  popupEl.appendChild(linesEl);
+
+  const pointsEl = document.createElement('div');
+  pointsEl.className = 'score-popup-points';
+  pointsEl.textContent = `+${points}`;
+  popupEl.appendChild(pointsEl);
+
+  const detailEl = document.createElement('div');
+  detailEl.className = 'score-popup-bonus';
+  detailEl.textContent = 'blocks removed';
+  popupEl.appendChild(detailEl);
+
+  const cellSize = state.boardMetrics.cellSize;
+  const left = Math.min(state.boardMetrics.width - 20, Math.max(20, (anchorCell.x + 0.5) * cellSize));
+  const top = Math.min(state.boardMetrics.height - 20, Math.max(24, (anchorCell.y + 0.5) * cellSize));
+
+  popupEl.style.left = `${left}px`;
+  popupEl.style.top = `${top}px`;
+  scorePopupLayerEl.appendChild(popupEl);
+
+  setTimeout(() => {
+    popupEl.remove();
+  }, 3000);
+}
+
 function showJamPenaltyPopup(player, percentLost, pointsLost) {
   const scoreBoxEl = scoreBoxEls[player];
   if (!scoreBoxEl) return;
@@ -2323,6 +2471,43 @@ function showJamPenaltyPopup(player, percentLost, pointsLost) {
     popupEl.remove();
     state.jamPenaltyPopupHandles[player] = null;
   }, 3000);
+}
+
+function getAreaClearCells(centerX, centerY) {
+  const cells = [];
+  for (let y = centerY - 1; y <= centerY + 1; y += 1) {
+    for (let x = centerX - 1; x <= centerX + 1; x += 1) {
+      if (x < 0 || x >= BOARD_SIZE || y < 0 || y >= BOARD_SIZE) continue;
+      cells.push({ x, y });
+    }
+  }
+  return cells;
+}
+
+function activateAreaClearSkill(player, centerX, centerY) {
+  if (!state.gameActive) return false;
+  if (state.ownedSkills[player] !== 'green') return false;
+
+  const affectedCells = getAreaClearCells(centerX, centerY);
+  let removedBlocks = 0;
+  affectedCells.forEach(({ x, y }) => {
+    if (state.board[y][x]) {
+      state.board[y][x] = null;
+      removedBlocks += 1;
+    }
+  });
+
+  state.ownedSkills[player] = null;
+  if (removedBlocks > 0) {
+    state.scores[player] += removedBlocks;
+  }
+
+  renderBoard();
+  renderRacks();
+  updateScores();
+  syncIdlePenaltyTracking({ resetPlayers: [player] });
+  showAreaClearPopup(removedBlocks, { x: centerX, y: centerY }, player);
+  return true;
 }
 
 function awardOwnedSkill(player, consumedSkillTiles = []) {
