@@ -400,6 +400,7 @@ const state = {
   sessionFallbackActive: false,
   pendingRoomConnect: false,
   lastRemoteActionSummary: '',
+  pendingGameplaySyncSnapshot: null,
 };
 
 let settingsCopyToastHandle = null;
@@ -582,9 +583,19 @@ function createGameplaySyncSnapshot() {
   };
 }
 
-function applyGameplaySyncSnapshot(snapshot) {
+function flushPendingGameplaySyncSnapshot() {
+  if (!state.pendingGameplaySyncSnapshot || state.activeDrags.size > 0) return;
+  const pendingSnapshot = state.pendingGameplaySyncSnapshot;
+  state.pendingGameplaySyncSnapshot = null;
+  applyGameplaySyncSnapshot(pendingSnapshot, { deferWhileDragging: false });
+}
+
+function applyGameplaySyncSnapshot(snapshot, { deferWhileDragging = true } = {}) {
   if (!snapshot || typeof snapshot !== 'object') return;
-  clearActiveDrags();
+  if (deferWhileDragging && state.activeDrags.size > 0) {
+    state.pendingGameplaySyncSnapshot = snapshot;
+    return;
+  }
   state.board = Array.isArray(snapshot.board)
     ? snapshot.board.map((row) => Array.isArray(row) ? row.map((cell) => (cell ? { ...cell } : null)) : [])
     : state.board;
@@ -809,6 +820,7 @@ async function connectRoomSession() {
 
 async function continueInLocalMode() {
   closeRoomStatusModal();
+  state.pendingGameplaySyncSnapshot = null;
   if (state.roomClient) {
     await state.roomClient.disconnect({ notifyServer: false });
     state.roomClient = null;
@@ -2597,6 +2609,7 @@ function onPointerUp(event) {
     window.removeEventListener('pointerup', onPointerUp);
     window.removeEventListener('pointercancel', onPointerUp);
     clearGhostMarks();
+    flushPendingGameplaySyncSnapshot();
   }
 }
 
@@ -2608,6 +2621,7 @@ function clearActiveDrags() {
   window.removeEventListener('pointerup', onPointerUp);
   window.removeEventListener('pointercancel', onPointerUp);
   clearGhostMarks();
+  flushPendingGameplaySyncSnapshot();
 }
 
 function cancelDragVisuals(drag) {
