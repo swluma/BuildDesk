@@ -441,6 +441,12 @@ function getRemotePlayerIndex() {
   return localPlayerIndex === 0 ? 1 : 0;
 }
 
+function canEditPreparationForPlayer(player) {
+  const localPlayerIndex = getLocalPlayerIndex();
+  if (localPlayerIndex === null) return true;
+  return player === localPlayerIndex;
+}
+
 function getRoomPlayers() {
   return state.room?.players || [];
 }
@@ -1329,19 +1335,28 @@ function renderModeUi() {
   });
   desiredPieceBtnEls.forEach((btn, player) => {
     btn.textContent = isComputerPlayer(player) ? 'Computer Piece' : 'Desired Piece';
+    btn.disabled = !canEditPreparationForPlayer(player);
+  });
+  blockStyleBtnEls.forEach((btn, player) => {
+    if (!btn) return;
+    btn.disabled = !canEditPreparationForPlayer(player);
   });
   computerModeBtnEls.forEach((btn, player) => {
     if (!btn) return;
     const enabled = isComputerPlayer(player);
+    const editable = canEditPreparationForPlayer(player);
     btn.textContent = `Computer: ${enabled ? 'On' : 'Off'}`;
     btn.classList.toggle('active', enabled);
     btn.setAttribute('aria-pressed', String(enabled));
+    btn.disabled = !editable;
   });
   computerDifficultyBtnEls.forEach((btn, player) => {
     if (!btn) return;
     const enabled = isComputerPlayer(player);
+    const editable = canEditPreparationForPlayer(player);
     btn.classList.toggle('hidden', !enabled);
     btn.textContent = `Difficulty: ${getComputerDifficultyLabel(player)}`;
+    btn.disabled = !editable;
   });
   renderBlockStyleButtons();
   renderBlockStyleModal();
@@ -3602,6 +3617,7 @@ function endGame() {
 }
 
 function toggleComputerMode(player) {
+  if (!canEditPreparationForPlayer(player)) return;
   state.computerPlayers[player] = !state.computerPlayers[player];
   closeDifficultyModal();
   closeCustomComputerModal();
@@ -3615,6 +3631,7 @@ function toggleComputerMode(player) {
 }
 
 function openDifficultyModal(player) {
+  if (!canEditPreparationForPlayer(player)) return;
   if (!isComputerPlayer(player)) return;
   state.activeDifficultyPlayer = player;
   closeSettingsTransferModal();
@@ -3808,6 +3825,7 @@ function updateDesiredPieceModal() {
 }
 
 function openDesiredPieceModal(player) {
+  if (!canEditPreparationForPlayer(player)) return;
   closeSettingsTransferModal();
   closeBlockStyleModal();
   closeGameDescriptionModal();
@@ -3892,6 +3910,7 @@ function closeGameDescriptionModal() {
 }
 
 function openBlockStyleModal(player) {
+  if (!canEditPreparationForPlayer(player)) return;
   closeSettingsTransferModal();
   closeGameDescriptionModal();
   closeDesiredPieceModal();
