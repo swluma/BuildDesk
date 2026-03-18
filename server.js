@@ -66,6 +66,8 @@ const server = http.createServer((request, response) => {
 server.listen(PORT, HOST, () => {
   console.log(`Block Blast Duel local server running at http://${HOST}:${PORT}`);
   console.log('Local mode: http://127.0.0.1:3000/');
-  console.log('Host mode:  http://127.0.0.1:3000/?hub=1&mode=host&name=Yuki&room=ABCD12');
-  console.log('Join mode:  http://127.0.0.1:3000/?hub=1&mode=join&name=Mika&room=ABCD12');
+  console.log('Local dev host: http://127.0.0.1:3000/?mode=host&name=Yuki&room=ABCD12&transport=local-dev');
+  console.log('Local dev join: http://127.0.0.1:3000/?mode=join&name=Mika&room=ABCD12&transport=local-dev');
+  console.log('Hub WS host:   http://127.0.0.1:3000/?hub=1&mode=host&name=Yuki&room=ABCD12&ws=ws://127.0.0.1:8787/ws');
+  console.log('Hub WS join:   http://127.0.0.1:3000/?hub=1&mode=join&name=Mika&room=ABCD12&ws=ws://127.0.0.1:8787/ws');
 });

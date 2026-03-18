@@ -14,13 +14,16 @@ Local testing
 -------------
 1. Run `npm start`
 2. Open `http://127.0.0.1:3000/` for normal local mode
-3. Open `http://127.0.0.1:3000/?hub=1&mode=host&name=Yuki&room=ABCD12` in one tab/window
-4. Open `http://127.0.0.1:3000/?hub=1&mode=join&name=Mika&room=ABCD12` in another tab/window
-5. The room flow uses a browser-local dev transport, so no remote WebSocket server is required yet
+3. Open `http://127.0.0.1:3000/?mode=host&name=Yuki&room=ABCD12&transport=local-dev` in one tab/window
+4. Open `http://127.0.0.1:3000/?mode=join&name=Mika&room=ABCD12&transport=local-dev` in another tab/window
+5. For hub-compatible WebSocket room testing, launch with:
+   - host: `http://127.0.0.1:3000/?hub=1&mode=host&name=Yuki&room=ABCD12&ws=ws://127.0.0.1:8787/ws`
+   - join: `http://127.0.0.1:3000/?hub=1&mode=join&name=Mika&room=ABCD12&ws=ws://127.0.0.1:8787/ws`
 
 Notes
 -----
 - Invalid room/session params fall back to local mode with a visible warning.
+- Hub room launches now require a valid `ws` URL unless you explicitly opt into the local-dev transport.
 - The room architecture now prepares session parsing, room status, transport abstraction, and serializable gameplay actions.
 - Full authoritative gameplay synchronization is still a follow-up step.
 

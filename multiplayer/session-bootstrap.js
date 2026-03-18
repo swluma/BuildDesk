@@ -3,6 +3,7 @@
   const GAME_ID = existing.GAME_ID || 'blockblast-duel';
   const ROOM_CODE_PATTERN = /[^A-Z0-9]/g;
   const NAME_SANITIZE_PATTERN = /[^\p{L}\p{N}\s._-]/gu;
+  const LOCAL_HOSTNAMES = new Set(['localhost', '127.0.0.1', '::1']);
 
   function sanitizeRoomCode(roomCode) {
     return String(roomCode || '')
@@ -29,6 +30,25 @@
     if (normalized === 'ws' || normalized === 'websocket') return 'websocket';
     if (normalized === 'local' || normalized === 'local-dev' || normalized === 'dev') return 'local-dev';
     return null;
+  }
+
+  function normalizeWsUrl(rawWsUrl) {
+    const trimmed = String(rawWsUrl || '').trim();
+    if (!trimmed) return { value: null, error: null };
+    try {
+      const normalized = new URL(trimmed, globalScope.location?.href || undefined);
+      if (normalized.protocol !== 'ws:' && normalized.protocol !== 'wss:') {
+        return { value: null, error: 'WebSocket URL must use ws:// or wss://.' };
+      }
+      return { value: normalized.toString(), error: null };
+    } catch {
+      return { value: null, error: 'WebSocket URL is invalid.' };
+    }
+  }
+
+  function isLocalDevHost() {
+    const hostname = String(globalScope.location?.hostname || '').trim().toLowerCase();
+    return LOCAL_HOSTNAMES.has(hostname);
   }
 
   function getStableClientId(mode, roomCode) {
@@ -61,6 +81,9 @@
       isValid: true,
       validationErrors: [],
       transportKind: 'local-dev',
+      requestedTransport: null,
+      supportsLocalDevFallback: false,
+      usingLocalDevRoomTransport: false,
       clientId: getStableClientId('local', null),
       ...overrides,
     };
@@ -75,20 +98,38 @@
     const validationErrors = [];
     const playerName = sanitizePlayerName(params.get('name') || '');
     const roomCode = sanitizeRoomCode(params.get('room') || '');
-    const wsUrl = String(params.get('ws') || '').trim() || null;
+    const wsResult = normalizeWsUrl(params.get('ws') || '');
+    const wsUrl = wsResult.value;
+    const rawWsParam = String(params.get('ws') || '').trim();
+    const wantsRoomMode = normalizedMode === 'host' || normalizedMode === 'join';
+    const explicitLocalDev = requestedTransport === 'local-dev';
+    const implicitLocalDev = wantsRoomMode && !rawWsParam && !requestedTransport && isLocalDevHost();
 
     if (!normalizedMode) validationErrors.push(`Unsupported mode "${requestedMode || '(empty)'}".`);
-    if ((normalizedMode === 'host' || normalizedMode === 'join') && !roomCode) {
+    if (wantsRoomMode && !roomCode) {
       validationErrors.push('Room code is required for host/join mode.');
     }
-    if ((normalizedMode === 'host' || normalizedMode === 'join') && !playerName) {
+    if (wantsRoomMode && !playerName) {
       validationErrors.push('Player name is required for host/join mode.');
+    }
+    if (wantsRoomMode && wsResult.error) {
+      validationErrors.push(wsResult.error);
+    }
+
+    let transportKind = 'local-dev';
+    if (wantsRoomMode) {
+      if (explicitLocalDev || implicitLocalDev) {
+        transportKind = 'local-dev';
+      } else if (wsUrl) {
+        transportKind = 'websocket';
+      } else {
+        validationErrors.push('WebSocket URL is required for host/join room mode.');
+      }
     }
 
     const effectiveMode = validationErrors.length > 0 ? 'local' : (normalizedMode || 'local');
     const isRoomPlay = effectiveMode === 'host' || effectiveMode === 'join';
     const clientId = getStableClientId(effectiveMode, roomCode || null);
-    const transportKind = requestedTransport || 'local-dev';
 
     return createSession({
       source,
@@ -105,7 +146,8 @@
       isValid: validationErrors.length === 0,
       validationErrors,
       transportKind,
-      supportsLocalDevFallback: true,
+      supportsLocalDevFallback: Boolean(implicitLocalDev || explicitLocalDev),
+      usingLocalDevRoomTransport: isRoomPlay && transportKind === 'local-dev',
       clientId,
     });
   }

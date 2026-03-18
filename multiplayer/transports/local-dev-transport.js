@@ -65,6 +65,10 @@
       }
       globalScope.addEventListener('storage', this.handleStorageEvent);
       this.connected = true;
+      this.emit('transport_open', {
+        roomCode: this.options.roomCode,
+        transportKind: 'local-dev',
+      });
       return Promise.resolve();
     }
 
@@ -77,6 +81,9 @@
         this.channel.close();
       }
       this.channel = null;
+      this.emit('transport_disconnected', {
+        reason: 'Local dev room transport disconnected.',
+      });
       this.emitter.clear();
       return Promise.resolve();
     }

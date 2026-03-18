@@ -35,6 +35,7 @@
       error: null,
       lastGameAction: null,
       lastSyncSnapshot: null,
+      transportKind: session.transportKind || 'local-dev',
     };
   }
 
@@ -53,6 +54,7 @@
       this.emitter = createEmitter();
       this.roomState = createInitialRoomState(session);
       this.heartbeatHandle = null;
+      this.hasRequestedSync = false;
       this.transport = this.createTransport(session.transportKind);
     }
 
@@ -78,6 +80,7 @@
           this.transport = this.createTransport('local-dev');
           this.bindTransportEvents(this.transport);
           await this.transport.connect();
+          this.session.transportKind = 'local-dev';
           this.emitter.emit('transportfallback', {
             transportKind: 'local-dev',
             reason: error?.message || 'WebSocket connection failed.',
@@ -160,12 +163,43 @@
     }
 
     bindTransportEvents(transport) {
+      transport.on('transport_open', () => {
+        this.setRoomState({
+          ...this.roomState,
+          error: null,
+          connectionStatus: CONNECTION_STATUSES.CONNECTED,
+        });
+      });
+      transport.on('transport_disconnected', (payload) => {
+        this.setRoomState({
+          ...this.roomState,
+          connectionStatus: CONNECTION_STATUSES.DISCONNECTED,
+          phase: this.roomState.phase === ROOM_PHASES.PLAYING ? ROOM_PHASES.PLAYING : ROOM_PHASES.WAITING,
+          error: payload?.reason
+            ? { code: 'transport_disconnected', message: payload.reason }
+            : null,
+        });
+        this.emitter.emit('transport_disconnected', payload);
+      });
+      transport.on('transport_error', (payload) => {
+        this.setRoomState({
+          ...this.roomState,
+          connectionStatus: CONNECTION_STATUSES.ERROR,
+          error: {
+            code: 'transport_error',
+            message: payload?.message || 'Room connection failed.',
+          },
+        });
+        this.emitter.emit('transport_error', payload);
+      });
       transport.on(SERVER_EVENTS.ROOM_JOINED, (payload) => {
         this.setRoomSnapshot(payload.room);
+        this.maybeRequestSync(payload.room);
         this.emitter.emit(SERVER_EVENTS.ROOM_JOINED, payload);
       });
       transport.on(SERVER_EVENTS.ROOM_STATE, (payload) => {
         this.setRoomSnapshot(payload.room);
+        this.maybeRequestSync(payload.room);
         this.emitter.emit(SERVER_EVENTS.ROOM_STATE, payload);
       });
       transport.on(SERVER_EVENTS.PLAYER_JOINED, (payload) => {
@@ -182,6 +216,7 @@
       });
       transport.on(SERVER_EVENTS.GAME_STARTED, (payload) => {
         this.setRoomSnapshot(payload.room);
+        this.hasRequestedSync = false;
         this.emitter.emit(SERVER_EVENTS.GAME_STARTED, payload);
       });
       transport.on(SERVER_EVENTS.GAME_ACTION, (payload) => {
@@ -198,6 +233,7 @@
           lastSyncSnapshot: payload.snapshot,
           lastGameAction: payload.lastGameAction || this.roomState.lastGameAction,
         });
+        this.hasRequestedSync = false;
         this.emitter.emit(SERVER_EVENTS.SYNC_STATE, payload);
       });
       transport.on(SERVER_EVENTS.ERROR, (payload) => {
@@ -220,6 +256,14 @@
         });
         this.emitter.emit(SERVER_EVENTS.ROOM_CLOSED, payload);
       });
+    }
+
+    maybeRequestSync(room) {
+      if (!this.session.isGuest) return;
+      if (this.hasRequestedSync) return;
+      if (room?.phase !== ROOM_PHASES.PLAYING) return;
+      this.hasRequestedSync = true;
+      this.requestSync();
     }
 
     setRoomSnapshot(room) {

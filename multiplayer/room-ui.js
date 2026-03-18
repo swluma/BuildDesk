@@ -14,12 +14,20 @@
     const canStart = Boolean(session.isHost && remotePlayer && remoteReady);
 
     let statusCopy = 'Local single-device play is ready.';
+    if (session.isRoomPlay && session.usingLocalDevRoomTransport) {
+      statusCopy = 'Local dev room mode is active.';
+    }
     if (session.isHost) statusCopy = remotePlayer
       ? (remoteReady ? 'Guest is ready. Start when ready.' : 'Guest joined. Waiting for readiness.')
       : 'Waiting for opponent...';
     if (session.isGuest) statusCopy = remotePlayer
       ? (localReady ? 'You are ready. Waiting for the host to start.' : 'Toggle ready when you are set.')
       : 'Joining room...';
+    if (connectionStatus === CONNECTION_STATUSES.CONNECTING) statusCopy = session.isHost
+      ? 'Connecting to room server...'
+      : 'Joining room...';
+    if (connectionStatus === CONNECTION_STATUSES.DISCONNECTED) statusCopy = 'Disconnected from the room. Retry or continue locally.';
+    if (connectionStatus === CONNECTION_STATUSES.ERROR) statusCopy = 'Room connection failed. Retry or continue locally.';
     if (roomState?.error?.message) statusCopy = roomState.error.message;
     if (!session.isRoomPlay && !session.isValid && session.validationErrors.length) {
       statusCopy = `${session.validationErrors.join(' ')} Running in local mode instead.`;

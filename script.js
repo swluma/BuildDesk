@@ -26,6 +26,29 @@ const IDLE_PENALTY_GRACE_MS = 5000;
 const IDLE_PENALTY_TICK_MS = 1000;
 const SETTINGS_STORAGE_KEY = 'blockblast_duel_settings_v1';
 const multiplayerApi = window.BlockblastMultiplayer || {};
+const resolvedStartupSession = multiplayerApi.resolveSession
+  ? multiplayerApi.resolveSession(window.location.search)
+  : {
+    source: 'direct',
+    gameId: 'blockblast-duel',
+    mode: 'local',
+    requestedMode: 'local',
+    playerName: '',
+    roomCode: null,
+    wsUrl: null,
+    isRoomPlay: false,
+    isLocalPlay: true,
+    isHost: false,
+    isGuest: false,
+    maxPlayers: 2,
+    isValid: true,
+    validationErrors: [],
+    transportKind: 'local-dev',
+    requestedTransport: null,
+    supportsLocalDevFallback: false,
+    usingLocalDevRoomTransport: false,
+    clientId: `local_${Math.random().toString(36).slice(2, 10)}`,
+  };
 const ROOM_CONTROL_ACTIONS = {
   PAUSE_STATE: 'pause_state',
   RESUME_COUNTDOWN: 'resume_countdown',
@@ -379,33 +402,9 @@ const state = {
   computerDifficulties: ['normal', 'normal'],
   customComputerSettings: [0, 1].map(() => makeDefaultCustomComputerSettings()),
   activeDifficultyPlayer: 0,
-  session: multiplayerApi.resolveSession
-    ? multiplayerApi.resolveSession(window.location.search)
-    : {
-      source: 'direct',
-      gameId: 'blockblast-duel',
-      mode: 'local',
-      requestedMode: 'local',
-      playerName: '',
-      roomCode: null,
-      wsUrl: null,
-      isRoomPlay: false,
-      isLocalPlay: true,
-      isHost: false,
-      isGuest: false,
-      maxPlayers: 2,
-      isValid: true,
-      validationErrors: [],
-      transportKind: 'local-dev',
-      clientId: `local_${Math.random().toString(36).slice(2, 10)}`,
-    },
+  session: resolvedStartupSession,
   room: multiplayerApi.createInitialRoomState
-    ? multiplayerApi.createInitialRoomState(multiplayerApi.resolveSession
-      ? multiplayerApi.resolveSession(window.location.search)
-      : {
-        roomCode: null,
-        isRoomPlay: false,
-      })
+    ? multiplayerApi.createInitialRoomState(resolvedStartupSession)
     : {
       roomCode: null,
       phase: 'idle',
@@ -1140,6 +1139,7 @@ async function connectRoomSession() {
   try {
     if (state.roomClient) await state.roomClient.disconnect({ notifyServer: false });
     state.roomClient = new multiplayerApi.RoomClient(getSession());
+    state.lastRemoteActionSummary = '';
     state.roomClient.on('statechange', (nextRoomState) => {
       state.room = nextRoomState;
       if (getRemoteRoomPlayer()) clearTransientLeaveWarning(getRemoteRoomPlayer()?.name || '');
@@ -1157,8 +1157,16 @@ async function connectRoomSession() {
     state.roomClient.on(multiplayerApi.SERVER_EVENTS?.GAME_ACTION || 'game_action', (payload) => {
       handleRemoteGameplayAction(payload);
     });
+    state.roomClient.on(multiplayerApi.SERVER_EVENTS?.SYNC_STATE || 'sync_state', (payload) => {
+      if (payload?.snapshot) applyGameplaySyncSnapshot(payload.snapshot);
+      renderSessionUi();
+    });
     state.roomClient.on('transportfallback', (payload) => {
       state.roomWarning = `${payload.reason} Using local dev room mode instead.`;
+      renderSessionUi();
+    });
+    state.roomClient.on('transport_disconnected', (payload) => {
+      state.roomWarning = payload?.reason || 'Disconnected from the room server.';
       renderSessionUi();
     });
     state.roomClient.on(multiplayerApi.SERVER_EVENTS?.ERROR || 'error', (payload) => {
@@ -1205,7 +1213,7 @@ async function connectRoomSession() {
     if (getSession().isHost) sendRoomSettingsSnapshot();
     state.roomWarning = '';
   } catch (error) {
-    state.roomWarning = error?.message || 'Failed to start the local room transport.';
+    state.roomWarning = error?.message || 'Failed to connect to the room server.';
   } finally {
     state.pendingRoomConnect = false;
     renderSessionUi();
