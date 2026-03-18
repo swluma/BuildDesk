@@ -4693,8 +4693,8 @@ function initDesiredPieces() {
   renderDesiredPiecePreviews();
 }
 
-function beginGameFlow({ roomStartPayload = null } = {}) {
-  if (roomStartPayload?.config) applyPreparationConfigSnapshot(roomStartPayload.config);
+function prepareGameFlowState({ configSnapshot = null, gameplaySnapshot = null } = {}) {
+  if (configSnapshot) applyPreparationConfigSnapshot(configSnapshot);
   commitPreparationDuration();
   commitSpecialSpawnChance();
   commitSkillTileSpawnInterval();
@@ -4720,7 +4720,18 @@ function beginGameFlow({ roomStartPayload = null } = {}) {
   resetState();
   state.matchInProgress = true;
   renderPauseButton();
-  fillAllRacks();
+  if (gameplaySnapshot) {
+    applyGameplaySyncSnapshot(gameplaySnapshot, { deferWhileDragging: false });
+  } else {
+    fillAllRacks();
+  }
+}
+
+function beginGameFlow({ roomStartPayload = null } = {}) {
+  prepareGameFlowState({
+    configSnapshot: roomStartPayload?.config || null,
+    gameplaySnapshot: roomStartPayload?.syncSnapshot || null,
+  });
   renderBoard();
   renderRacks();
   renderSpecialSlot();
@@ -4755,7 +4766,15 @@ function startGameFlow() {
       renderSessionUi();
       return;
     }
-    state.roomClient.startGame(createPreparationConfigSnapshot(), createGameplaySyncSnapshot());
+    const configSnapshot = createPreparationConfigSnapshot();
+    prepareGameFlowState({ configSnapshot });
+    state.roomClient.startGame(configSnapshot, createGameplaySyncSnapshot());
+    renderBoard();
+    renderRacks();
+    renderSpecialSlot();
+    renderModeUi();
+    renderDesiredPiecePreviews();
+    refreshLayoutMetrics();
     renderSessionUi();
     return;
   }
