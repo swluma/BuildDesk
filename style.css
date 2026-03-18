@@ -3635,6 +3635,10 @@ body {
   line-height: 1.45;
 }
 
+.session-warning.hidden {
+  display: none;
+}
+
 .room-prep-panel {
   margin: 12px 0 18px;
   padding: 16px;

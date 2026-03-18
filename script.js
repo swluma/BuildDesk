@@ -511,7 +511,7 @@ function getRoomUiModel() {
 }
 
 function showSessionWarning(message) {
-  state.roomWarning = message || '';
+  state.roomWarning = String(message || '').trim();
   if (!sessionWarningEl) return;
   sessionWarningEl.textContent = state.roomWarning;
   sessionWarningEl.classList.toggle('hidden', !state.roomWarning);
