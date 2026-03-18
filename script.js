@@ -187,6 +187,8 @@ const pauseResumeEl = document.getElementById('pause-resume');
 const pauseMenuOverlayEl = document.getElementById('pause-menu-overlay');
 const pauseMenuResumeBtn = document.getElementById('pause-menu-resume');
 const pauseMenuQuitBtn = document.getElementById('pause-menu-quit');
+const roomWaitOverlayEl = document.getElementById('room-wait-overlay');
+const roomWaitMessageEl = document.getElementById('room-wait-message');
 const endOverlayEl = document.getElementById('end-overlay');
 const endSummaryEl = document.getElementById('end-summary');
 const endTitleEl = document.getElementById('end-title');
@@ -780,9 +782,11 @@ function replayRemoteRoomControl(action) {
     clearComputerMoveTimer();
     clearActiveDrags();
     if (payload.showMenu) {
-      pauseMenuOverlayEl.classList.remove('hidden');
+      showRoomWaitOverlay(payload.message || 'The other player paused the game.');
+      closePauseMenu();
       hidePauseOverlay();
     } else if (payload.message) {
+      hideRoomWaitOverlay();
       closePauseMenu();
       showPauseOverlay(payload.message);
     }
@@ -791,6 +795,7 @@ function replayRemoteRoomControl(action) {
     return true;
   }
   if (action.type === ROOM_CONTROL_ACTIONS.RESUME_COUNTDOWN) {
+    hideRoomWaitOverlay();
     closePauseMenu();
     startVisibleCountdown(payload.title || 'RESUME', payload.from || RESUME_COUNTDOWN, () => {
       state.manualPauseActive = false;
@@ -808,6 +813,7 @@ function replayRemoteRoomControl(action) {
     state.manualPauseActive = false;
     clearComputerMoveTimer();
     clearActiveDrags();
+    hideRoomWaitOverlay();
     closePauseMenu();
     if (payload.message) showPauseOverlay(payload.message);
     renderSkillButtons();
@@ -1994,8 +2000,9 @@ function addPoints(player, points, { copyable = true } = {}) {
 function renderPauseButton() {
   const autoPauseVisible = !pauseOverlayEl.classList.contains('hidden');
   const countdownVisible = !countdownOverlayEl.classList.contains('hidden');
+  const waitVisible = roomWaitOverlayEl ? !roomWaitOverlayEl.classList.contains('hidden') : false;
   pauseBtnEl.hidden = !state.matchInProgress;
-  pauseBtnEl.disabled = !state.gameActive || state.manualPauseActive || autoPauseVisible || countdownVisible;
+  pauseBtnEl.disabled = !state.gameActive || state.manualPauseActive || autoPauseVisible || countdownVisible || waitVisible;
 }
 
 function updateTimer() {
@@ -3889,6 +3896,17 @@ function hidePauseOverlay() {
   renderPauseButton();
 }
 
+function showRoomWaitOverlay(message) {
+  if (roomWaitMessageEl) roomWaitMessageEl.textContent = message;
+  roomWaitOverlayEl?.classList.remove('hidden');
+  renderPauseButton();
+}
+
+function hideRoomWaitOverlay() {
+  roomWaitOverlayEl?.classList.add('hidden');
+  renderPauseButton();
+}
+
 function openPauseMenu() {
   if (!state.gameActive) return;
   if (isRoomSessionActive() && !getSession().isHost) {
@@ -3908,6 +3926,7 @@ function openPauseMenu() {
   syncRoomControlAction(ROOM_CONTROL_ACTIONS.PAUSE_STATE, {
     manualPauseActive: true,
     showMenu: true,
+    message: 'The other player paused the game.',
   });
 }
 
@@ -4080,6 +4099,7 @@ function endGame() {
   state.skillUiHandle = null;
   closePauseMenu();
   hidePauseOverlay();
+  hideRoomWaitOverlay();
   renderSkillButtons();
   renderPauseButton();
   renderEndOverlay();
@@ -4622,6 +4642,7 @@ function beginGameFlow({ roomStartPayload = null } = {}) {
   closeRoomStatusModal();
   closePauseMenu();
   hidePauseOverlay();
+  hideRoomWaitOverlay();
   resetState();
   state.matchInProgress = true;
   renderPauseButton();
@@ -4683,6 +4704,7 @@ function returnToPreparation() {
   closeRoomStatusModal();
   closePauseMenu();
   hidePauseOverlay();
+  hideRoomWaitOverlay();
   resetState();
   state.matchInProgress = false;
   renderBoard();
