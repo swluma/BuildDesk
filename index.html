@@ -14,6 +14,7 @@
     <header class="top-bar">
       <div class="brand">BLOCK BLAST DUEL</div>
       <div class="top-bar-controls">
+        <div id="session-status-pill" class="session-status-pill">LOCAL MODE</div>
         <div class="timer-wrap">
           <span class="timer-label">TIME</span>
           <span id="timer" class="timer">120</span>
@@ -73,10 +74,40 @@
       <h1>BLOCK BLAST DUEL</h1>
       <p>Two players race on the same board.</p>
       <p>Long-press a piece, slide it to the board, then release to place it.</p>
+      <div id="session-warning" class="session-warning hidden" role="status"></div>
       <button id="game-description-btn" class="secondary-btn prep-description-btn" type="button">Game Description</button>
       <button id="start-btn" class="primary-btn">Start Game</button>
       <button id="settings-transfer-btn" class="secondary-btn prep-setting-btn" type="button">Load / Save Settings</button>
       <button id="fullscreen-btn" class="secondary-btn prep-setting-btn" type="button">Enter Full Screen</button>
+      <section id="room-prep-panel" class="room-prep-panel hidden" aria-live="polite">
+        <div class="room-prep-header">
+          <span id="room-mode-badge" class="room-mode-badge">HOST MODE</span>
+          <span id="room-phase-value" class="room-phase-value">CONNECTING</span>
+        </div>
+        <div class="room-prep-grid">
+          <div class="room-prep-item">
+            <span class="room-prep-label">Player</span>
+            <span id="room-player-name" class="room-prep-value">Yuki</span>
+          </div>
+          <div class="room-prep-item">
+            <span class="room-prep-label">Room</span>
+            <span id="room-code-value" class="room-prep-value">ABCD12</span>
+          </div>
+          <div class="room-prep-item">
+            <span class="room-prep-label">Connection</span>
+            <span id="room-connection-status" class="room-prep-value">CONNECTING</span>
+          </div>
+          <div class="room-prep-item">
+            <span class="room-prep-label">Opponent</span>
+            <span id="room-opponent-status" class="room-prep-value">Waiting...</span>
+          </div>
+        </div>
+        <p id="room-status-copy" class="room-status-copy">Waiting for opponent...</p>
+        <div class="room-prep-actions">
+          <button id="room-retry-btn" class="secondary-btn prep-setting-btn" type="button">Retry Room</button>
+          <button id="continue-local-btn" class="secondary-btn prep-setting-btn" type="button">Continue in Local Mode</button>
+        </div>
+      </section>
       <div class="prep-config" aria-label="desired piece setup">
         <div class="prep-player-card">
           <div class="prep-player-meta">
@@ -715,6 +746,12 @@
     </div>
   </template>
 
+  <script src="multiplayer/protocol.js"></script>
+  <script src="multiplayer/session-bootstrap.js"></script>
+  <script src="multiplayer/transports/local-dev-transport.js"></script>
+  <script src="multiplayer/transports/websocket-transport.js"></script>
+  <script src="multiplayer/room-ui.js"></script>
+  <script src="multiplayer/room-client.js"></script>
   <script src="script.js"></script>
 </body>
 </html>

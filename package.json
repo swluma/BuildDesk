@@ -1,0 +1,9 @@
+{
+  "name": "blockblast-duel",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Local test server for Block Blast Duel",
+  "scripts": {
+    "start": "python -m http.server 3000 --bind 127.0.0.1"
+  }
+}

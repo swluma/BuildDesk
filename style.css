@@ -3427,7 +3427,140 @@ body {
     gap: 8px;
   }
 
-  .piece-pool-list {
-    margin-top: 10px;
+.piece-pool-list {
+  margin-top: 10px;
+}
+}
+
+.session-status-pill {
+  padding: 6px 10px;
+  border: 1px solid rgba(141, 255, 117, 0.3);
+  border-radius: 999px;
+  background: rgba(10, 23, 17, 0.8);
+  color: var(--accent);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  white-space: nowrap;
+}
+
+.session-warning {
+  margin: 10px 0 14px;
+  padding: 12px 14px;
+  border: 1px solid rgba(255, 178, 102, 0.3);
+  border-radius: 14px;
+  background: rgba(63, 33, 14, 0.82);
+  color: #ffd8ab;
+  font-size: 0.92rem;
+  line-height: 1.45;
+}
+
+.room-prep-panel {
+  margin: 12px 0 18px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background:
+    linear-gradient(180deg, rgba(14, 28, 44, 0.94) 0%, rgba(11, 20, 31, 0.96) 100%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
+}
+
+.room-prep-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.room-mode-badge,
+.room-phase-value {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 32px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-size: 0.76rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+}
+
+.room-mode-badge {
+  background: rgba(77, 163, 255, 0.14);
+  color: #8fcbff;
+  border: 1px solid rgba(77, 163, 255, 0.24);
+}
+
+.room-phase-value {
+  background: rgba(141, 255, 117, 0.12);
+  color: var(--accent);
+  border: 1px solid rgba(141, 255, 117, 0.22);
+}
+
+.room-prep-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.room-prep-item {
+  display: grid;
+  gap: 4px;
+  padding: 12px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.room-prep-label {
+  color: var(--muted);
+  font-size: 0.75rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.room-prep-value {
+  font-size: 1rem;
+  font-weight: 800;
+  word-break: break-word;
+}
+
+.room-status-copy {
+  margin: 14px 0 0;
+  color: #dce8f2;
+  font-size: 0.95rem;
+  line-height: 1.45;
+}
+
+.room-prep-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 14px;
+}
+
+body.room-session-active .prep-config {
+  margin-top: 16px;
+}
+
+body.room-session-active #start-btn[disabled] {
+  opacity: 0.58;
+}
+
+@media (max-width: 760px) {
+  .top-bar-controls {
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
+
+  .session-status-pill {
+    order: 3;
+    width: 100%;
+    justify-content: center;
+  }
+
+  .room-prep-grid {
+    grid-template-columns: minmax(0, 1fr);
   }
 }

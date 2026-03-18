@@ -1,0 +1,9 @@
+{
+  "id": "blockblast-duel",
+  "title": "Block Blast Duel",
+  "description": "Two players race on the same board while clearing lines, collecting skills, and preparing for room-based hub launches.",
+  "icon": "icon.png",
+  "maxPlayers": 2,
+  "supportsLocal": true,
+  "supportsRooms": true
+}

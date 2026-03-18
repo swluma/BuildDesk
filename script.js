@@ -24,6 +24,7 @@ const MAX_CUSTOM_COMPUTER_INTERVAL_MS = 5000;
 const IDLE_PENALTY_GRACE_MS = 5000;
 const IDLE_PENALTY_TICK_MS = 1000;
 const SETTINGS_STORAGE_KEY = 'blockblast_duel_settings_v1';
+const multiplayerApi = window.BlockblastMultiplayer || {};
 
 const COMPUTER_DIFFICULTIES = {
   easy: {
@@ -169,6 +170,8 @@ const ownedSkillBoxEls = ownedSkillEls.map((el) => el?.parentElement || null);
 const timerEl = document.getElementById('timer');
 const pauseBtnEl = document.getElementById('pause-btn');
 const overlayEl = document.getElementById('overlay');
+const sessionStatusPillEl = document.getElementById('session-status-pill');
+const sessionWarningEl = document.getElementById('session-warning');
 const countdownOverlayEl = document.getElementById('countdown-overlay');
 const countdownTitleEl = document.getElementById('countdown-title');
 const countdownNumberEl = document.getElementById('countdown-number');
@@ -182,6 +185,16 @@ const endOverlayEl = document.getElementById('end-overlay');
 const endSummaryEl = document.getElementById('end-summary');
 const endTitleEl = document.getElementById('end-title');
 const startBtn = document.getElementById('start-btn');
+const roomPrepPanelEl = document.getElementById('room-prep-panel');
+const roomModeBadgeEl = document.getElementById('room-mode-badge');
+const roomPhaseValueEl = document.getElementById('room-phase-value');
+const roomPlayerNameEl = document.getElementById('room-player-name');
+const roomCodeValueEl = document.getElementById('room-code-value');
+const roomConnectionStatusEl = document.getElementById('room-connection-status');
+const roomOpponentStatusEl = document.getElementById('room-opponent-status');
+const roomStatusCopyEl = document.getElementById('room-status-copy');
+const roomRetryBtn = document.getElementById('room-retry-btn');
+const continueLocalBtn = document.getElementById('continue-local-btn');
 const restartBtn = document.getElementById('restart-btn');
 const computerModeBtnEls = [
   document.getElementById('computer-mode-btn-0'),
@@ -341,9 +354,324 @@ const state = {
   computerDifficulties: ['normal', 'normal'],
   customComputerSettings: [0, 1].map(() => makeDefaultCustomComputerSettings()),
   activeDifficultyPlayer: 0,
+  session: multiplayerApi.resolveSession
+    ? multiplayerApi.resolveSession(window.location.search)
+    : {
+      source: 'direct',
+      gameId: 'blockblast-duel',
+      mode: 'local',
+      requestedMode: 'local',
+      playerName: '',
+      roomCode: null,
+      wsUrl: null,
+      isRoomPlay: false,
+      isLocalPlay: true,
+      isHost: false,
+      isGuest: false,
+      maxPlayers: 2,
+      isValid: true,
+      validationErrors: [],
+      transportKind: 'local-dev',
+      clientId: `local_${Math.random().toString(36).slice(2, 10)}`,
+    },
+  room: multiplayerApi.createInitialRoomState
+    ? multiplayerApi.createInitialRoomState(multiplayerApi.resolveSession
+      ? multiplayerApi.resolveSession(window.location.search)
+      : {
+        roomCode: null,
+        isRoomPlay: false,
+      })
+    : {
+      roomCode: null,
+      phase: 'idle',
+      connectionStatus: 'offline',
+      players: [],
+      hostId: null,
+      error: null,
+      lastGameAction: null,
+      lastSyncSnapshot: null,
+    },
+  roomClient: null,
+  roomWarning: '',
+  sessionFallbackActive: false,
+  pendingRoomConnect: false,
+  lastRemoteActionSummary: '',
 };
 
 let settingsCopyToastHandle = null;
+
+function getSession() {
+  return state.session;
+}
+
+function getFallbackLocalSession() {
+  return multiplayerApi.createSession
+    ? multiplayerApi.createSession({
+      source: getSession().source,
+      requestedMode: getSession().requestedMode,
+      playerName: getSession().playerName,
+      roomCode: getSession().roomCode,
+      wsUrl: getSession().wsUrl,
+      validationErrors: [...getSession().validationErrors],
+      isValid: false,
+    })
+    : {
+      ...getSession(),
+      mode: 'local',
+      isRoomPlay: false,
+      isLocalPlay: true,
+      isHost: false,
+      isGuest: false,
+      isValid: false,
+    };
+}
+
+function isRoomSessionActive() {
+  return Boolean(getSession().isRoomPlay) && !state.sessionFallbackActive;
+}
+
+function getLocalPlayerIndex() {
+  if (!isRoomSessionActive()) return null;
+  return getSession().isHost ? 0 : 1;
+}
+
+function getRemotePlayerIndex() {
+  const localPlayerIndex = getLocalPlayerIndex();
+  if (localPlayerIndex === null) return null;
+  return localPlayerIndex === 0 ? 1 : 0;
+}
+
+function getRoomPlayers() {
+  return state.room?.players || [];
+}
+
+function getLocalRoomPlayer() {
+  return getRoomPlayers().find((player) => player.id === getSession().clientId) || null;
+}
+
+function getRemoteRoomPlayer() {
+  return getRoomPlayers().find((player) => player.id !== getSession().clientId) || null;
+}
+
+function getRoomUiModel() {
+  return multiplayerApi.buildRoomUiModel
+    ? multiplayerApi.buildRoomUiModel(getSession(), state.room)
+    : {
+      modeLabel: getSession().isRoomPlay ? `${getSession().mode.toUpperCase()} MODE` : 'LOCAL MODE',
+      phaseLabel: String(state.room?.phase || 'idle').toUpperCase(),
+      connectionLabel: String(state.room?.connectionStatus || 'offline').toUpperCase(),
+      playerName: getSession().playerName || 'Local Player',
+      roomCode: getSession().roomCode || 'LOCAL',
+      opponentName: getRemoteRoomPlayer()?.name || 'Waiting...',
+      opponentConnected: Boolean(getRemoteRoomPlayer()),
+      canStart: Boolean(getSession().isHost && getRemoteRoomPlayer()),
+      statusCopy: state.roomWarning || 'Local single-device play is ready.',
+      showContinueLocal: Boolean(getSession().isRoomPlay),
+      showRetry: Boolean(getSession().isRoomPlay),
+    };
+}
+
+function showSessionWarning(message) {
+  state.roomWarning = message || '';
+  if (!sessionWarningEl) return;
+  sessionWarningEl.textContent = state.roomWarning;
+  sessionWarningEl.classList.toggle('hidden', !state.roomWarning);
+}
+
+function getRoomDisplayPlayerName(player) {
+  const session = getSession();
+  const remotePlayer = getRemoteRoomPlayer();
+  const localIndex = getLocalPlayerIndex();
+  if (localIndex === null) return null;
+  if (player === localIndex) return session.playerName || `PLAYER ${player + 1}`;
+  return remotePlayer?.name || (player === 0 ? 'HOST' : 'GUEST');
+}
+
+function serializePieceForSync(piece) {
+  if (!piece) return null;
+  return {
+    id: piece.id,
+    player: piece.player,
+    shapeId: piece.shapeId || null,
+    cells: cloneCells(piece.cells),
+    previewColor: piece.previewColor,
+    glowColor: piece.glowColor,
+    glowStrength: piece.glowStrength,
+    desired: Boolean(piece.desired),
+    disabled: Boolean(piece.disabled),
+  };
+}
+
+function createPreparationConfigSnapshot() {
+  return {
+    prepDuration: state.prepDuration,
+    prepSpecialSpawnChance: state.prepSpecialSpawnChance,
+    prepSkillTileSpawnIntervalMs: state.prepSkillTileSpawnIntervalMs,
+    prepMaxSkillTiles: state.prepMaxSkillTiles,
+    prepStuckPenalty: state.prepStuckPenalty,
+    prepNonStopMode: state.prepNonStopMode,
+    prepDesiredSkillCost: state.prepDesiredSkillCost,
+    prepDesiredSkillCooldownMs: state.prepDesiredSkillCooldownMs,
+    desiredSkillEnabled: state.desiredSkillEnabled,
+  };
+}
+
+function applyPreparationConfigSnapshot(config) {
+  if (!config) return;
+  if (Number.isFinite(config.prepDuration)) state.prepDuration = clampPreparationDuration(config.prepDuration);
+  if (Number.isFinite(config.prepSpecialSpawnChance)) state.prepSpecialSpawnChance = config.prepSpecialSpawnChance;
+  if (Number.isFinite(config.prepSkillTileSpawnIntervalMs)) state.prepSkillTileSpawnIntervalMs = config.prepSkillTileSpawnIntervalMs;
+  if (Number.isFinite(config.prepMaxSkillTiles)) state.prepMaxSkillTiles = config.prepMaxSkillTiles;
+  if (Number.isFinite(config.prepStuckPenalty)) state.prepStuckPenalty = config.prepStuckPenalty;
+  state.prepNonStopMode = Boolean(config.prepNonStopMode);
+  if (Number.isFinite(config.prepDesiredSkillCost)) state.prepDesiredSkillCost = config.prepDesiredSkillCost;
+  if (Number.isFinite(config.prepDesiredSkillCooldownMs)) state.prepDesiredSkillCooldownMs = config.prepDesiredSkillCooldownMs;
+  if (typeof config.desiredSkillEnabled === 'boolean') state.desiredSkillEnabled = config.desiredSkillEnabled;
+  renderPreparationDuration();
+  renderSpecialSpawnChance();
+  renderSkillTileSettings();
+  renderStuckPenalty();
+  renderDesiredSkillSettings();
+}
+
+function createGameplaySyncSnapshot() {
+  return {
+    board: cloneBoard(),
+    scores: [...state.scores],
+    racks: state.racks.map((rack) => rack.map((piece) => serializePieceForSync(piece))),
+    specialTiles: [...state.specialTiles],
+    skillTiles: [...state.skillTiles.entries()].map(([key, skill]) => ({ key, skillId: skill.id })),
+    ownedSkills: [...state.ownedSkills],
+    activeSkillEffects: state.activeSkillEffects.map((effect) => (effect ? { ...effect } : null)),
+    timeLeft: state.timeLeft,
+    matchInProgress: state.matchInProgress,
+    gameActive: state.gameActive,
+  };
+}
+
+function publishGameplayAction(type, payload = {}, { includeSnapshot = false } = {}) {
+  const createSerializableAction = multiplayerApi.createSerializableAction;
+  if (!isRoomSessionActive() || !state.roomClient || typeof createSerializableAction !== 'function') return;
+  const actionPayload = includeSnapshot
+    ? {
+      ...payload,
+      snapshot: createGameplaySyncSnapshot(),
+    }
+    : payload;
+  const action = createSerializableAction(type, actionPayload);
+  state.roomClient.sendGameAction(action);
+}
+
+function handleRemoteGameplayAction(payload) {
+  if (!payload?.action || payload.playerId === getSession().clientId) return;
+  state.lastRemoteActionSummary = `${payload.action.type} from ${getRemoteRoomPlayer()?.name || 'opponent'}`;
+  if (roomStatusCopyEl && state.room?.phase === 'playing') {
+    roomStatusCopyEl.textContent = `${getRoomUiModel().statusCopy} Last remote action: ${state.lastRemoteActionSummary}.`;
+  }
+  // TODO(blockblast-multiplayer): apply remote room actions to authoritative board state.
+}
+
+function renderSessionUi() {
+  const session = getSession();
+  const roomUi = getRoomUiModel();
+  document.body.classList.toggle('room-session-active', isRoomSessionActive());
+  if (sessionStatusPillEl) sessionStatusPillEl.textContent = roomUi.modeLabel;
+  if (roomPrepPanelEl) roomPrepPanelEl.classList.toggle('hidden', !session.isRoomPlay || state.sessionFallbackActive);
+  if (roomModeBadgeEl) roomModeBadgeEl.textContent = roomUi.modeLabel;
+  if (roomPhaseValueEl) roomPhaseValueEl.textContent = roomUi.phaseLabel;
+  if (roomPlayerNameEl) roomPlayerNameEl.textContent = roomUi.playerName;
+  if (roomCodeValueEl) roomCodeValueEl.textContent = roomUi.roomCode;
+  if (roomConnectionStatusEl) roomConnectionStatusEl.textContent = roomUi.connectionLabel;
+  if (roomOpponentStatusEl) roomOpponentStatusEl.textContent = roomUi.opponentName;
+  if (roomStatusCopyEl) roomStatusCopyEl.textContent = state.lastRemoteActionSummary && state.room?.phase === 'playing'
+    ? `${roomUi.statusCopy} Last remote action: ${state.lastRemoteActionSummary}.`
+    : roomUi.statusCopy;
+  if (roomRetryBtn) roomRetryBtn.hidden = !roomUi.showRetry;
+  if (continueLocalBtn) continueLocalBtn.hidden = !roomUi.showContinueLocal;
+  if (!session.isValid && session.validationErrors.length) {
+    showSessionWarning(`${session.validationErrors.join(' ')} Running in local mode instead.`);
+  } else if (!state.roomWarning) {
+    showSessionWarning('');
+  } else {
+    showSessionWarning(state.roomWarning);
+  }
+  if (startBtn) {
+    if (session.isRoomPlay && !state.sessionFallbackActive) {
+      startBtn.textContent = session.isHost ? 'Start Match' : 'Waiting for Host';
+      startBtn.disabled = !session.isHost || !roomUi.canStart;
+    } else {
+      startBtn.textContent = 'Start Game';
+      startBtn.disabled = false;
+    }
+  }
+}
+
+async function connectRoomSession() {
+  if (!isRoomSessionActive() || !multiplayerApi.RoomClient || state.pendingRoomConnect) return;
+  state.pendingRoomConnect = true;
+  try {
+    if (state.roomClient) await state.roomClient.disconnect({ notifyServer: false });
+    state.roomClient = new multiplayerApi.RoomClient(getSession());
+    state.roomClient.on('statechange', (nextRoomState) => {
+      state.room = nextRoomState;
+      renderSessionUi();
+      renderModeUi();
+    });
+    state.roomClient.on(multiplayerApi.SERVER_EVENTS?.GAME_STARTED || 'game_started', (payload) => {
+      applyPreparationConfigSnapshot(payload.config);
+      beginGameFlow({ roomStartPayload: payload });
+    });
+    state.roomClient.on(multiplayerApi.SERVER_EVENTS?.GAME_ACTION || 'game_action', (payload) => {
+      handleRemoteGameplayAction(payload);
+    });
+    state.roomClient.on('transportfallback', (payload) => {
+      state.roomWarning = `${payload.reason} Using local dev room mode instead.`;
+      renderSessionUi();
+    });
+    state.roomClient.on(multiplayerApi.SERVER_EVENTS?.ERROR || 'error', (payload) => {
+      state.roomWarning = payload?.message || 'Room connection failed.';
+      renderSessionUi();
+    });
+    state.roomClient.on(multiplayerApi.SERVER_EVENTS?.ROOM_CLOSED || 'room_closed', () => {
+      state.roomWarning = 'The room was closed. You can retry or continue locally.';
+      renderSessionUi();
+    });
+    await state.roomClient.connect();
+    if (getSession().isGuest) state.roomClient.setReady(true);
+    state.roomWarning = '';
+  } catch (error) {
+    state.roomWarning = error?.message || 'Failed to start the local room transport.';
+  } finally {
+    state.pendingRoomConnect = false;
+    renderSessionUi();
+  }
+}
+
+async function continueInLocalMode() {
+  if (state.roomClient) {
+    await state.roomClient.disconnect({ notifyServer: false });
+    state.roomClient = null;
+  }
+  state.sessionFallbackActive = true;
+  state.session = getFallbackLocalSession();
+  state.room = multiplayerApi.createInitialRoomState
+    ? multiplayerApi.createInitialRoomState(state.session)
+    : {
+      roomCode: null,
+      phase: 'idle',
+      connectionStatus: 'offline',
+      players: [],
+      hostId: null,
+      error: null,
+      lastGameAction: null,
+      lastSyncSnapshot: null,
+    };
+  state.roomWarning = getSession().validationErrors?.length
+    ? `${getSession().validationErrors.join(' ')} Running in local mode instead.`
+    : 'Running in local mode.';
+  renderSessionUi();
+  renderModeUi();
+}
 
 function randomItem(arr) {
   return arr[Math.floor(Math.random() * arr.length)];
@@ -605,6 +933,8 @@ function isSingleBottomHumanView() {
 }
 
 function getPlayerDisplayName(player) {
+  const roomDisplayName = getRoomDisplayPlayerName(player);
+  if (roomDisplayName) return roomDisplayName;
   if (isComputerPlayer(player)) return `COMPUTER ${player + 1}`;
   return `PLAYER ${player + 1}`;
 }
@@ -2761,12 +3091,26 @@ function activateAreaClearSkill(player, centerX, centerY, { allowComputer = fals
   });
 
   state.ownedSkills[player] = null;
-  if (removedBlocks > 0) addPoints(player, removedBlocks);
+  if (removedBlocks > 0) {
+    addPoints(player, removedBlocks);
+    publishGameplayAction(multiplayerApi.GAME_ACTIONS?.GAIN_SCORE || 'gain_score', {
+      player,
+      points: removedBlocks,
+      reason: 'area_clear_skill',
+    });
+  }
 
   renderBoard();
   renderRacks();
   syncIdlePenaltyTracking({ resetPlayers: [player] });
   showAreaClearPopup(removedBlocks, { x: centerX, y: centerY }, player);
+  publishGameplayAction(multiplayerApi.GAME_ACTIONS?.USE_SKILL || 'use_skill', {
+    player,
+    skillId: 'green',
+    centerX,
+    centerY,
+    removedBlocks,
+  }, { includeSnapshot: true });
   return true;
 }
 
@@ -2783,6 +3127,10 @@ function activateScoreBoostSkill(player, { allowComputer = false } = {}) {
     remainingMs: SCORE_BOOST_DURATION_MS,
   };
   renderOwnedSkills();
+  publishGameplayAction(multiplayerApi.GAME_ACTIONS?.USE_SKILL || 'use_skill', {
+    player,
+    skillId: 'red',
+  });
   return true;
 }
 
@@ -2800,6 +3148,11 @@ function activatePieceBlockSkill(player, { allowComputer = false } = {}) {
   };
   renderOwnedSkills();
   renderRacks();
+  publishGameplayAction(multiplayerApi.GAME_ACTIONS?.USE_SKILL || 'use_skill', {
+    player,
+    skillId: 'blue',
+    targetPlayer: player === 0 ? 1 : 0,
+  });
   return true;
 }
 
@@ -2967,6 +3320,11 @@ function updateSkillTileSpawns(elapsedMs) {
 function refillSource(source) {
   state.racks[source.player][source.slotIndex] = makePiece(source.player);
   renderRacks();
+  publishGameplayAction(multiplayerApi.GAME_ACTIONS?.NEXT_PIECE_STATE || 'next_piece_state', {
+    player: source.player,
+    slotIndex: source.slotIndex,
+    piece: serializePieceForSync(state.racks[source.player][source.slotIndex]),
+  });
 }
 
 function clearComputerMoveTimer(player = null) {
@@ -3025,6 +3383,18 @@ function placeDraggedPiece(drag) {
   const scoringPlayer = drag.source.player;
   putPieceOnBoard(drag.piece, x, y);
   addPoints(scoringPlayer, 1);
+  publishGameplayAction(multiplayerApi.GAME_ACTIONS?.PLACE_PIECE || 'place_piece', {
+    player: scoringPlayer,
+    x,
+    y,
+    source: drag.source,
+    piece: serializePieceForSync(drag.piece),
+  });
+  publishGameplayAction(multiplayerApi.GAME_ACTIONS?.GAIN_SCORE || 'gain_score', {
+    player: scoringPlayer,
+    points: 1,
+    reason: 'piece_placement',
+  });
   renderBoard();
   renderRacks();
   renderSpecialSlot();
@@ -3035,6 +3405,17 @@ function placeDraggedPiece(drag) {
     const scoreResult = scoreForClear(clearInfo.rows, clearInfo.cols);
     awardOwnedSkill(scoringPlayer, scoreResult.consumedSkillTiles);
     addPoints(scoringPlayer, scoreResult.points);
+    publishGameplayAction(multiplayerApi.GAME_ACTIONS?.CLEAR_LINES || 'clear_lines', {
+      player: scoringPlayer,
+      rows: [...clearInfo.rows],
+      cols: [...clearInfo.cols],
+      scoreResult,
+    }, { includeSnapshot: true });
+    publishGameplayAction(multiplayerApi.GAME_ACTIONS?.GAIN_SCORE || 'gain_score', {
+      player: scoringPlayer,
+      points: scoreResult.points,
+      reason: 'line_clear',
+    });
     showScorePopup(scoreResult, getPopupAnchorCell(drag.piece, x, y), scoringPlayer);
     animateAndClear(
       clearInfo.rows,
@@ -3214,6 +3595,10 @@ function endGame() {
     <div>${getPlayerDisplayName(1)}: <strong>${Math.floor(b)}</strong></div>
   `;
   endOverlayEl.classList.remove('hidden');
+  publishGameplayAction(multiplayerApi.GAME_ACTIONS?.END_ROUND || 'end_round', {
+    scores: [...state.scores],
+    winner: a === b ? null : (a > b ? 0 : 1),
+  }, { includeSnapshot: true });
 }
 
 function toggleComputerMode(player) {
@@ -3696,6 +4081,16 @@ function activateDesiredSkill(player, { allowComputer = false } = {}) {
   updateScores();
   renderRacks();
   syncIdlePenaltyTracking();
+  publishGameplayAction(multiplayerApi.GAME_ACTIONS?.USE_SKILL || 'use_skill', {
+    player,
+    skillId: 'desired_piece',
+    cost: state.prepDesiredSkillCost,
+  });
+  publishGameplayAction(multiplayerApi.GAME_ACTIONS?.NEXT_PIECE_STATE || 'next_piece_state', {
+    player,
+    slotIndex: Math.floor(MAX_RACK / 2),
+    piece: serializePieceForSync(state.racks[player][Math.floor(MAX_RACK / 2)]),
+  });
   return true;
 }
 
@@ -3704,7 +4099,8 @@ function initDesiredPieces() {
   renderDesiredPiecePreviews();
 }
 
-function startGameFlow() {
+function beginGameFlow({ roomStartPayload = null } = {}) {
+  if (roomStartPayload?.config) applyPreparationConfigSnapshot(roomStartPayload.config);
   commitPreparationDuration();
   commitSpecialSpawnChance();
   commitSkillTileSpawnInterval();
@@ -3735,6 +4131,11 @@ function startGameFlow() {
   renderModeUi();
   renderDesiredPiecePreviews();
   refreshLayoutMetrics();
+  publishGameplayAction(multiplayerApi.GAME_ACTIONS?.READY_FOR_ROUND || 'ready_for_round', {
+    playerId: getSession().clientId,
+    startedBy: roomStartPayload?.startedBy || getSession().clientId,
+    mode: getSession().mode,
+  }, { includeSnapshot: true });
   startVisibleCountdown('START', 3, () => {
     state.gameActive = true;
     syncIdlePenaltyTracking({ resetPlayers: [0, 1] });
@@ -3744,6 +4145,26 @@ function startGameFlow() {
     startTimerLoop();
     scheduleComputerMove();
   });
+}
+
+function startGameFlow() {
+  if (isRoomSessionActive()) {
+    if (!getSession().isHost || !state.roomClient) {
+      renderSessionUi();
+      return;
+    }
+    const roomUi = getRoomUiModel();
+    if (!roomUi.canStart) {
+      state.roomWarning = 'Waiting for the opponent to join before starting.';
+      renderSessionUi();
+      return;
+    }
+    state.roomClient.startGame(createPreparationConfigSnapshot(), createGameplaySyncSnapshot());
+    renderSessionUi();
+    return;
+  }
+
+  beginGameFlow();
 }
 
 function returnToPreparation() {
@@ -3776,6 +4197,7 @@ function returnToPreparation() {
   overlayEl.classList.remove('hidden');
   refreshLayoutMetrics();
   renderPauseButton();
+  renderSessionUi();
 }
 
 function init() {
@@ -3804,6 +4226,13 @@ function init() {
   if (!loadedStoredSettings) persistSettingsToStorage();
   refreshLayoutMetrics();
   renderPauseButton();
+  state.sessionFallbackActive = !state.session.isValid && state.session.requestedMode !== 'local';
+  if (state.sessionFallbackActive) state.session = getFallbackLocalSession();
+  state.room = multiplayerApi.createInitialRoomState
+    ? multiplayerApi.createInitialRoomState(state.session)
+    : state.room;
+  renderSessionUi();
+  if (isRoomSessionActive()) connectRoomSession();
 }
 
 desiredPieceBtnEls.forEach((btn, player) => {
@@ -4021,6 +4450,14 @@ gameDescriptionModalEl.addEventListener('click', (event) => {
   if (event.target === gameDescriptionModalEl) closeGameDescriptionModal();
 });
 startBtn.addEventListener('click', startGameFlow);
+roomRetryBtn?.addEventListener('click', () => {
+  state.roomWarning = '';
+  renderSessionUi();
+  connectRoomSession();
+});
+continueLocalBtn?.addEventListener('click', () => {
+  continueInLocalMode();
+});
 restartBtn.addEventListener('click', returnToPreparation);
 window.addEventListener('resize', () => {
   refreshLayoutMetrics();
@@ -4098,6 +4535,10 @@ document.addEventListener('touchmove', (event) => {
 
 document.addEventListener('gesturestart', (event) => {
   event.preventDefault();
+});
+
+window.addEventListener('beforeunload', () => {
+  if (state.roomClient) state.roomClient.disconnect().catch(() => {});
 });
 
 init();

@@ -5,6 +5,24 @@ Files:
 - index.html
 - style.css
 - script.js
+- multiplayer/
+- server.js
+- package.json
+- game.json
+
+Local testing
+-------------
+1. Run `npm start`
+2. Open `http://127.0.0.1:3000/` for normal local mode
+3. Open `http://127.0.0.1:3000/?hub=1&mode=host&name=Yuki&room=ABCD12` in one tab/window
+4. Open `http://127.0.0.1:3000/?hub=1&mode=join&name=Mika&room=ABCD12` in another tab/window
+5. The room flow uses a browser-local dev transport, so no remote WebSocket server is required yet
+
+Notes
+-----
+- Invalid room/session params fall back to local mode with a visible warning.
+- The room architecture now prepares session parsing, room status, transport abstraction, and serializable gameplay actions.
+- Full authoritative gameplay synchronization is still a follow-up step.
 
 Implemented assumptions
 -----------------------
