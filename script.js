@@ -836,7 +836,13 @@ function processIncomingRoomIntent(action, remotePlayerId) {
   if (remotePlayerIndex === null && action.type !== ROOM_CONTROL_ACTIONS.PAUSE_STATE && action.type !== ROOM_CONTROL_ACTIONS.RESUME_COUNTDOWN && action.type !== ROOM_CONTROL_ACTIONS.INTERRUPT_MATCH && action.type !== ROOM_CONTROL_ACTIONS.RETURN_TO_PREPARATION) return false;
 
   if (action.type === ROOM_CONTROL_ACTIONS.PAUSE_STATE) {
-    openPauseMenu();
+    activateManualPauseAsWaitingPlayer(payload.message || 'The other player paused the game.');
+    syncRoomControlAction(ROOM_CONTROL_ACTIONS.PAUSE_STATE, {
+      manualPauseActive: true,
+      showMenu: true,
+      controllerId: remotePlayerId,
+      message: payload.message || 'The other player paused the game.',
+    });
     return true;
   }
 
@@ -976,7 +982,13 @@ function replayRemoteRoomControl(action) {
     state.manualPauseActive = Boolean(payload.manualPauseActive);
     clearComputerMoveTimer();
     clearActiveDrags();
-    if (payload.showMenu) {
+    const pauseMenuAlreadyOpen = pauseMenuOverlayEl ? !pauseMenuOverlayEl.classList.contains('hidden') : false;
+    const isPauseController = Boolean(payload.controllerId && payload.controllerId === getSession().clientId);
+    if (payload.showMenu && payload.manualPauseActive && (isPauseController || pauseMenuAlreadyOpen)) {
+      hideRoomWaitOverlay();
+      hidePauseOverlay();
+      pauseMenuOverlayEl.classList.remove('hidden');
+    } else if (payload.showMenu) {
       showRoomWaitOverlay(payload.message || 'The other player paused the game.');
       closePauseMenu();
       hidePauseOverlay();
@@ -4181,25 +4193,47 @@ function hideRoomWaitOverlay() {
   renderPauseButton();
 }
 
-function openPauseMenu() {
-  if (!state.gameActive) return;
-  if (isRoomSessionActive() && !getSession().isHost) {
-    sendRoomIntent(ROOM_CONTROL_ACTIONS.PAUSE_STATE, {
-      manualPauseActive: true,
-      showMenu: true,
-    });
-    return;
-  }
+function activateManualPauseAsController() {
   state.gameActive = false;
   state.manualPauseActive = true;
   clearComputerMoveTimer();
   clearActiveDrags();
+  hideRoomWaitOverlay();
+  hidePauseOverlay();
   pauseMenuOverlayEl.classList.remove('hidden');
   renderSkillButtons();
   renderPauseButton();
+}
+
+function activateManualPauseAsWaitingPlayer(message) {
+  state.gameActive = false;
+  state.manualPauseActive = true;
+  clearComputerMoveTimer();
+  clearActiveDrags();
+  closePauseMenu();
+  hidePauseOverlay();
+  showRoomWaitOverlay(message || 'The other player paused the game.');
+  renderSkillButtons();
+  renderPauseButton();
+}
+
+function openPauseMenu() {
+  if (!state.gameActive) return;
+  if (isRoomSessionActive() && !getSession().isHost) {
+    activateManualPauseAsController();
+    sendRoomIntent(ROOM_CONTROL_ACTIONS.PAUSE_STATE, {
+      manualPauseActive: true,
+      showMenu: true,
+      controllerId: getSession().clientId,
+      message: 'The other player paused the game.',
+    });
+    return;
+  }
+  activateManualPauseAsController();
   syncRoomControlAction(ROOM_CONTROL_ACTIONS.PAUSE_STATE, {
     manualPauseActive: true,
     showMenu: true,
+    controllerId: getSession().clientId,
     message: 'The other player paused the game.',
   });
 }
