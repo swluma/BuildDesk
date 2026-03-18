@@ -1386,8 +1386,20 @@ body {
 }
 
 .countdown-card,
-.pause-card {
+.pause-card,
+.interrupt-card {
   width: min(100%, 300px);
+}
+
+.interrupt-card {
+  width: min(100%, 360px);
+  padding: 26px 22px 22px;
+  text-align: left;
+  border-color: rgba(255, 151, 114, 0.28);
+  background:
+    radial-gradient(circle at top right, rgba(255, 151, 114, 0.16), transparent 42%),
+    radial-gradient(circle at bottom left, rgba(108, 194, 255, 0.12), transparent 48%),
+    linear-gradient(180deg, rgba(24, 34, 49, 0.98), rgba(10, 17, 26, 0.98));
 }
 
 .pause-menu-card {
@@ -2920,6 +2932,53 @@ body {
 
 .pause-title {
   color: #ff9dae;
+}
+
+.interrupt-kicker {
+  font-size: 0.72rem;
+  font-weight: 900;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: #ffb08b;
+}
+
+.interrupt-title {
+  margin: 10px 0 0;
+  font-size: clamp(1.55rem, 5vw, 2rem);
+  line-height: 1.05;
+  color: #fff4ee;
+}
+
+.interrupt-message {
+  margin: 12px 0 0;
+  color: #d6e5ef;
+  line-height: 1.5;
+}
+
+.interrupt-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 18px;
+  padding: 10px 14px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.interrupt-status-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: linear-gradient(180deg, #ffba67, #ff7e5b);
+  box-shadow: 0 0 14px rgba(255, 150, 89, 0.4);
+}
+
+.interrupt-detail {
+  font-size: 0.86rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  color: #fff1e8;
 }
 
 .drag-piece {

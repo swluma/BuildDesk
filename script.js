@@ -11,6 +11,7 @@ const SKILL_TILE_SPAWN_COUNT = 2;
 const DEFAULT_MAX_SKILL_TILES = 10;
 const SCORE_BOOST_DURATION_MS = 10000;
 const RESUME_COUNTDOWN = 3;
+const INTERRUPT_RETURN_DELAY_MS = 1400;
 const INVALID_FLASH_MS = 800;
 const SUCCESS_FLASH_MS = 700;
 const CLEAR_ANIMATION_MS = 360;
@@ -187,6 +188,11 @@ const countdownNumberEl = document.getElementById('countdown-number');
 const pauseOverlayEl = document.getElementById('pause-overlay');
 const pauseMessageEl = document.getElementById('pause-message');
 const pauseResumeEl = document.getElementById('pause-resume');
+const interruptOverlayEl = document.getElementById('interrupt-overlay');
+const interruptKickerEl = document.getElementById('interrupt-kicker');
+const interruptTitleEl = document.getElementById('interrupt-title');
+const interruptMessageEl = document.getElementById('interrupt-message');
+const interruptDetailEl = document.getElementById('interrupt-detail');
 const pauseMenuOverlayEl = document.getElementById('pause-menu-overlay');
 const pauseMenuResumeBtn = document.getElementById('pause-menu-resume');
 const pauseMenuQuitBtn = document.getElementById('pause-menu-quit');
@@ -749,11 +755,23 @@ function processIncomingRoomIntent(action, remotePlayerId) {
 
   if (action.type === ROOM_CONTROL_ACTIONS.INTERRUPT_MATCH) {
     syncRoomControlAction(ROOM_CONTROL_ACTIONS.INTERRUPT_MATCH, {
+      variant: payload.variant || 'quit',
+      kicker: payload.kicker,
+      title: payload.title,
       message: payload.message || 'The match was interrupted.',
+      detail: payload.detail,
       returnToPreparation: Boolean(payload.returnToPreparation),
     });
     closePauseMenu();
-    returnToPreparation();
+    showInterruptOverlay(payload);
+    if (payload.returnToPreparation) {
+      setTimeout(() => {
+        hideInterruptOverlay();
+        returnToPreparation();
+      }, INTERRUPT_RETURN_DELAY_MS);
+    } else {
+      returnToPreparation();
+    }
     return true;
   }
 
@@ -883,14 +901,14 @@ function replayRemoteRoomControl(action) {
     clearActiveDrags();
     hideRoomWaitOverlay();
     closePauseMenu();
-    if (payload.message) showPauseOverlay(payload.message);
+    showInterruptOverlay(payload);
     renderSkillButtons();
     renderPauseButton();
     if (payload.returnToPreparation) {
       setTimeout(() => {
-        hidePauseOverlay();
+        hideInterruptOverlay();
         returnToPreparation();
-      }, 900);
+      }, INTERRUPT_RETURN_DELAY_MS);
     }
     return true;
   }
@@ -1016,12 +1034,35 @@ async function connectRoomSession() {
       state.roomWarning = payload?.message || 'Room connection failed.';
       renderSessionUi();
     });
+    state.roomClient.on(multiplayerApi.SERVER_EVENTS?.PLAYER_LEFT || 'player_left', (payload) => {
+      const playerName = payload?.player?.name || 'The other player';
+      if (state.matchInProgress || state.room?.phase === 'playing') {
+        replayRemoteRoomControl({
+          type: ROOM_CONTROL_ACTIONS.INTERRUPT_MATCH,
+          payload: {
+            variant: 'disconnect',
+            kicker: 'PLAYER LEFT',
+            title: `${playerName} left the room`,
+            message: 'The round cannot continue because the room no longer has two players.',
+            detail: 'Returning to setup...',
+            returnToPreparation: true,
+          },
+        });
+      } else {
+        state.roomWarning = `${playerName} left the room.`;
+      }
+      renderSessionUi();
+    });
     state.roomClient.on(multiplayerApi.SERVER_EVENTS?.ROOM_CLOSED || 'room_closed', () => {
       state.roomWarning = 'The room was closed. You can retry or continue locally.';
       replayRemoteRoomControl({
         type: ROOM_CONTROL_ACTIONS.INTERRUPT_MATCH,
         payload: {
-          message: 'The room was closed.',
+          variant: 'disconnect',
+          kicker: 'ROOM CLOSED',
+          title: 'Connection lost',
+          message: 'The host closed the room or disconnected, so this round has ended.',
+          detail: 'Returning to setup...',
           returnToPreparation: true,
         },
       });
@@ -2070,9 +2111,10 @@ function addPoints(player, points, { copyable = true } = {}) {
 function renderPauseButton() {
   const autoPauseVisible = !pauseOverlayEl.classList.contains('hidden');
   const countdownVisible = !countdownOverlayEl.classList.contains('hidden');
+  const interruptVisible = interruptOverlayEl ? !interruptOverlayEl.classList.contains('hidden') : false;
   const waitVisible = roomWaitOverlayEl ? !roomWaitOverlayEl.classList.contains('hidden') : false;
   pauseBtnEl.hidden = !state.matchInProgress;
-  pauseBtnEl.disabled = !state.gameActive || state.manualPauseActive || autoPauseVisible || countdownVisible || waitVisible;
+  pauseBtnEl.disabled = !state.gameActive || state.manualPauseActive || autoPauseVisible || countdownVisible || interruptVisible || waitVisible;
 }
 
 function updateTimer() {
@@ -3966,6 +4008,48 @@ function hidePauseOverlay() {
   renderPauseButton();
 }
 
+function getInterruptOverlayContent(payload = {}) {
+  if (payload.title || payload.kicker || payload.detail) {
+    return {
+      kicker: payload.kicker || 'MATCH INTERRUPTED',
+      title: payload.title || 'Round ended',
+      message: payload.message || 'This round has ended and cannot continue.',
+      detail: payload.detail || 'Returning to setup...',
+    };
+  }
+  if (payload.variant === 'disconnect') {
+    return {
+      kicker: 'CONNECTION LOST',
+      title: 'Opponent disconnected',
+      message: payload.message || 'This round cannot continue because the room connection was lost.',
+      detail: 'Returning to setup...',
+    };
+  }
+  return {
+    kicker: 'MATCH INTERRUPTED',
+    title: 'Round ended',
+    message: payload.message || 'The match was ended and returned to setup.',
+    detail: 'Returning to setup...',
+  };
+}
+
+function showInterruptOverlay(payload = {}) {
+  const content = getInterruptOverlayContent(payload);
+  hidePauseOverlay();
+  hideRoomWaitOverlay();
+  if (interruptKickerEl) interruptKickerEl.textContent = content.kicker;
+  if (interruptTitleEl) interruptTitleEl.textContent = content.title;
+  if (interruptMessageEl) interruptMessageEl.textContent = content.message;
+  if (interruptDetailEl) interruptDetailEl.textContent = content.detail;
+  interruptOverlayEl?.classList.remove('hidden');
+  renderPauseButton();
+}
+
+function hideInterruptOverlay() {
+  interruptOverlayEl?.classList.add('hidden');
+  renderPauseButton();
+}
+
 function showRoomWaitOverlay(message) {
   if (roomWaitMessageEl) roomWaitMessageEl.textContent = message;
   roomWaitOverlayEl?.classList.remove('hidden');
@@ -4035,17 +4119,32 @@ function quitPausedGame() {
   if (!shouldQuit) return;
   if (isRoomSessionActive() && !getSession().isHost) {
     sendRoomIntent(ROOM_CONTROL_ACTIONS.INTERRUPT_MATCH, {
-      message: 'The match was ended and returned to setup.',
+      variant: 'quit',
+      title: 'Match ended',
+      message: 'A player ended the current round and returned to setup.',
+      detail: 'Returning to setup...',
       returnToPreparation: true,
     });
     return;
   }
   syncRoomControlAction(ROOM_CONTROL_ACTIONS.INTERRUPT_MATCH, {
-    message: 'The match was ended and returned to setup.',
+    variant: 'quit',
+    title: 'Match ended',
+    message: 'A player ended the current round and returned to setup.',
+    detail: 'Returning to setup...',
     returnToPreparation: true,
   });
   closePauseMenu();
-  returnToPreparation();
+  showInterruptOverlay({
+    variant: 'quit',
+    title: 'Match ended',
+    message: 'A player ended the current round and returned to setup.',
+    detail: 'Returning to setup...',
+  });
+  setTimeout(() => {
+    hideInterruptOverlay();
+    returnToPreparation();
+  }, INTERRUPT_RETURN_DELAY_MS);
 }
 
 function clearBoardAndRefreshPieces() {
@@ -4169,6 +4268,7 @@ function endGame() {
   state.skillUiHandle = null;
   closePauseMenu();
   hidePauseOverlay();
+  hideInterruptOverlay();
   hideRoomWaitOverlay();
   renderSkillButtons();
   renderPauseButton();
@@ -4716,6 +4816,7 @@ function prepareGameFlowState({ configSnapshot = null, gameplaySnapshot = null }
   closeRoomStatusModal();
   closePauseMenu();
   hidePauseOverlay();
+  hideInterruptOverlay();
   hideRoomWaitOverlay();
   resetState();
   state.matchInProgress = true;
@@ -4797,6 +4898,7 @@ function returnToPreparation() {
   closeRoomStatusModal();
   closePauseMenu();
   hidePauseOverlay();
+  hideInterruptOverlay();
   hideRoomWaitOverlay();
   resetState();
   state.matchInProgress = false;

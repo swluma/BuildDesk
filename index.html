@@ -396,6 +396,24 @@
   </div>
 
   <div
+    id="interrupt-overlay"
+    class="overlay hidden interrupt-overlay"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="interrupt-title"
+  >
+    <div class="overlay-card interrupt-card">
+      <div id="interrupt-kicker" class="interrupt-kicker">MATCH INTERRUPTED</div>
+      <h2 id="interrupt-title" class="interrupt-title">Opponent disconnected</h2>
+      <p id="interrupt-message" class="interrupt-message">This round can't continue, so you'll be returned to setup.</p>
+      <div class="interrupt-status">
+        <span class="interrupt-status-dot" aria-hidden="true"></span>
+        <span id="interrupt-detail" class="interrupt-detail">Returning to setup...</span>
+      </div>
+    </div>
+  </div>
+
+  <div
     id="pause-menu-overlay"
     class="overlay hidden pause-menu-overlay"
     role="dialog"
