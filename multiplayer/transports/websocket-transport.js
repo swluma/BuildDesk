@@ -83,7 +83,16 @@
 
     send(eventName, payload) {
       if (!this.socket || this.socket.readyState !== WebSocket.OPEN) return;
-      this.socket.send(JSON.stringify({ eventName, payload }));
+      const normalizedPayload = payload && typeof payload === 'object' ? payload : {};
+      this.socket.send(JSON.stringify({
+        eventName,
+        event: eventName,
+        type: eventName,
+        name: eventName,
+        payload: normalizedPayload,
+        data: normalizedPayload,
+        ...normalizedPayload,
+      }));
     }
 
     on(eventName, handler) {
@@ -137,7 +146,8 @@
         const data = JSON.parse(event.data);
         const eventName = data?.eventName || data?.event || data?.type;
         if (!eventName) return;
-        this.emitter.emit(eventName, data.payload);
+        const payload = data?.payload ?? data?.data ?? data;
+        this.emitter.emit(eventName, payload);
       } catch {
         // Ignore malformed server messages.
       }

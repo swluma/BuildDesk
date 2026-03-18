@@ -4,6 +4,7 @@
   "private": true,
   "description": "Local test server for Block Blast Duel",
   "scripts": {
-    "start": "python -m http.server 3000 --bind 127.0.0.1"
+    "start": "node server/room-server.js",
+    "room-server": "node server/room-server.js"
   }
 }

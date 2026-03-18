@@ -48,6 +48,13 @@
     return CONNECTION_STATUSES.CONNECTED;
   }
 
+  function getRoomSnapshotFromPayload(payload) {
+    if (!payload || typeof payload !== 'object') return null;
+    if (payload.room && typeof payload.room === 'object') return payload.room;
+    if (payload.roomCode || payload.players || payload.phase || payload.hostId) return payload;
+    return null;
+  }
+
   class RoomClient {
     constructor(session) {
       this.session = session;
@@ -193,29 +200,35 @@
         this.emitter.emit('transport_error', payload);
       });
       transport.on(SERVER_EVENTS.ROOM_JOINED, (payload) => {
-        this.setRoomSnapshot(payload.room);
-        this.maybeRequestSync(payload.room);
+        const room = getRoomSnapshotFromPayload(payload);
+        if (room) this.setRoomSnapshot(room);
+        this.maybeRequestSync(room);
         this.emitter.emit(SERVER_EVENTS.ROOM_JOINED, payload);
       });
       transport.on(SERVER_EVENTS.ROOM_STATE, (payload) => {
-        this.setRoomSnapshot(payload.room);
-        this.maybeRequestSync(payload.room);
+        const room = getRoomSnapshotFromPayload(payload);
+        if (room) this.setRoomSnapshot(room);
+        this.maybeRequestSync(room);
         this.emitter.emit(SERVER_EVENTS.ROOM_STATE, payload);
       });
       transport.on(SERVER_EVENTS.PLAYER_JOINED, (payload) => {
-        this.setRoomSnapshot(payload.room);
+        const room = getRoomSnapshotFromPayload(payload);
+        if (room) this.setRoomSnapshot(room);
         this.emitter.emit(SERVER_EVENTS.PLAYER_JOINED, payload);
       });
       transport.on(SERVER_EVENTS.PLAYER_LEFT, (payload) => {
-        this.setRoomSnapshot(payload.room);
+        const room = getRoomSnapshotFromPayload(payload);
+        if (room) this.setRoomSnapshot(room);
         this.emitter.emit(SERVER_EVENTS.PLAYER_LEFT, payload);
       });
       transport.on(SERVER_EVENTS.PLAYER_READY, (payload) => {
-        this.setRoomSnapshot(payload.room);
+        const room = getRoomSnapshotFromPayload(payload);
+        if (room) this.setRoomSnapshot(room);
         this.emitter.emit(SERVER_EVENTS.PLAYER_READY, payload);
       });
       transport.on(SERVER_EVENTS.GAME_STARTED, (payload) => {
-        this.setRoomSnapshot(payload.room);
+        const room = getRoomSnapshotFromPayload(payload);
+        if (room) this.setRoomSnapshot(room);
         this.hasRequestedSync = false;
         this.emitter.emit(SERVER_EVENTS.GAME_STARTED, payload);
       });
@@ -227,10 +240,11 @@
         this.emitter.emit(SERVER_EVENTS.GAME_ACTION, payload);
       });
       transport.on(SERVER_EVENTS.SYNC_STATE, (payload) => {
-        this.setRoomSnapshot(payload.room);
+        const room = getRoomSnapshotFromPayload(payload);
+        if (room) this.setRoomSnapshot(room);
         this.setRoomState({
           ...this.roomState,
-          lastSyncSnapshot: payload.snapshot,
+          lastSyncSnapshot: payload.snapshot ?? payload.syncSnapshot ?? null,
           lastGameAction: payload.lastGameAction || this.roomState.lastGameAction,
         });
         this.hasRequestedSync = false;
