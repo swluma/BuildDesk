@@ -793,6 +793,11 @@ body {
   z-index: 6;
 }
 
+.remote-clear-cell {
+  position: absolute;
+  z-index: 1;
+}
+
 .score-popup {
   position: absolute;
   min-width: min(34vw, 140px);

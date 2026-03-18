@@ -162,6 +162,7 @@ const app = document.getElementById('app');
 const boardEl = document.getElementById('board');
 const boardShellEl = document.getElementById('board-shell');
 const scorePopupLayerEl = document.getElementById('score-popup-layer');
+const boardEffectLayerEl = document.getElementById('board-effect-layer');
 const rackEls = [document.getElementById('rack-0'), document.getElementById('rack-1')];
 const scoreEls = [document.getElementById('score-0'), document.getElementById('score-1')];
 const scoreBoxEls = scoreEls.map((el) => el?.parentElement || null);
@@ -577,6 +578,7 @@ function createGameplaySyncSnapshot() {
     skillTiles: [...state.skillTiles.entries()].map(([key, skill]) => ({ key, skillId: skill.id })),
     ownedSkills: [...state.ownedSkills],
     activeSkillEffects: state.activeSkillEffects.map((effect) => (effect ? { ...effect } : null)),
+    skillCooldownEndsAt: [...state.skillCooldownEndsAt],
     timeLeft: state.timeLeft,
     matchInProgress: state.matchInProgress,
     gameActive: state.gameActive,
@@ -611,6 +613,9 @@ function applyGameplaySyncSnapshot(snapshot, { deferWhileDragging = true } = {})
   state.activeSkillEffects = Array.isArray(snapshot.activeSkillEffects)
     ? snapshot.activeSkillEffects.map((effect) => (effect ? { ...effect } : null))
     : state.activeSkillEffects;
+  state.skillCooldownEndsAt = Array.isArray(snapshot.skillCooldownEndsAt)
+    ? snapshot.skillCooldownEndsAt.map((value) => Number(value) || 0)
+    : state.skillCooldownEndsAt;
   if (Number.isFinite(snapshot.timeLeft)) state.timeLeft = snapshot.timeLeft;
   state.matchInProgress = Boolean(snapshot.matchInProgress);
   state.gameActive = Boolean(snapshot.gameActive);
@@ -725,6 +730,7 @@ function replayRemoteGameplayEffect(action) {
   if (!action || !action.payload) return;
   const payload = action.payload;
   if (action.type === (multiplayerApi.GAME_ACTIONS?.CLEAR_LINES || 'clear_lines') && payload.scoreResult && payload.anchorCell) {
+    animateClearingLinesVisual(payload.rows || [], payload.cols || [], payload.clearedCells || []);
     showScorePopup(payload.scoreResult, payload.anchorCell, payload.player ?? null);
     return;
   }
@@ -2834,6 +2840,30 @@ function scoreForClear(rows, cols) {
   };
 }
 
+function collectClearedCellVisuals(rows, cols) {
+  const clearSet = new Set();
+  const clearedCells = [];
+  rows.forEach((y) => {
+    for (let x = 0; x < BOARD_SIZE; x += 1) clearSet.add(`${x},${y}`);
+  });
+  cols.forEach((x) => {
+    for (let y = 0; y < BOARD_SIZE; y += 1) clearSet.add(`${x},${y}`);
+  });
+  clearSet.forEach((key) => {
+    const [x, y] = key.split(',').map(Number);
+    const cell = state.board[y][x];
+    if (!cell) return;
+    clearedCells.push({
+      x,
+      y,
+      previewColor: cell.previewColor,
+      glowColor: cell.glowColor,
+      glowStrength: cell.glowStrength,
+    });
+  });
+  return clearedCells;
+}
+
 function cloneBoard(board = state.board) {
   return board.map((row) => row.map((cell) => (cell ? { ...cell } : null)));
 }
@@ -3458,6 +3488,46 @@ function animateAndClear(rows, cols, consumedSpecialTiles = [], consumedSkillTil
   }, CLEAR_ANIMATION_MS);
 }
 
+function animateClearingLinesVisual(rows, cols, clearedCells = []) {
+  if (!boardEffectLayerEl) return;
+  const seen = new Set();
+  const cellsToAnimate = Array.isArray(clearedCells) && clearedCells.length
+    ? clearedCells
+    : (() => {
+      const fallbackCells = [];
+      rows.forEach((y) => {
+        for (let x = 0; x < BOARD_SIZE; x += 1) fallbackCells.push({ x, y });
+      });
+      cols.forEach((x) => {
+        for (let y = 0; y < BOARD_SIZE; y += 1) fallbackCells.push({ x, y });
+      });
+      return fallbackCells;
+    })();
+
+  cellsToAnimate.forEach((cell) => {
+    const key = `${cell.x},${cell.y}`;
+    if (seen.has(key)) return;
+    seen.add(key);
+    const sourceCellEl = state.boardCells?.[cell.y]?.[cell.x];
+    if (!sourceCellEl) return;
+    const overlayEl = document.createElement('div');
+    overlayEl.className = 'board-cell clearing remote-clear-cell';
+    overlayEl.style.left = `${boardEl.offsetLeft + sourceCellEl.offsetLeft}px`;
+    overlayEl.style.top = `${boardEl.offsetTop + sourceCellEl.offsetTop}px`;
+    overlayEl.style.width = `${sourceCellEl.offsetWidth}px`;
+    overlayEl.style.height = `${sourceCellEl.offsetHeight}px`;
+    if (cell.previewColor) {
+      const fillEl = document.createElement('div');
+      fillEl.className = 'board-cell-fill';
+      fillEl.style.background = cell.previewColor;
+      fillEl.style.boxShadow = getPieceGlowStyle(cell, { scale: 0.8 });
+      overlayEl.appendChild(fillEl);
+    }
+    boardEffectLayerEl.appendChild(overlayEl);
+    setTimeout(() => overlayEl.remove(), CLEAR_ANIMATION_MS);
+  });
+}
+
 function animateSpecialTileSpawn(tileKeys) {
   tileKeys.forEach((key) => {
     const [x, y] = key.split(',').map(Number);
@@ -3650,6 +3720,7 @@ function placeDraggedPiece(drag) {
   if (clearInfo.rows.length || clearInfo.cols.length) {
     const scoreResult = scoreForClear(clearInfo.rows, clearInfo.cols);
     const popupAnchorCell = getPopupAnchorCell(drag.piece, x, y);
+    const clearedCells = collectClearedCellVisuals(clearInfo.rows, clearInfo.cols);
     awardOwnedSkill(scoringPlayer, scoreResult.consumedSkillTiles);
     addPoints(scoringPlayer, scoreResult.points);
     publishGameplayAction(multiplayerApi.GAME_ACTIONS?.CLEAR_LINES || 'clear_lines', {
@@ -3658,6 +3729,7 @@ function placeDraggedPiece(drag) {
       cols: [...clearInfo.cols],
       scoreResult,
       anchorCell: popupAnchorCell,
+      clearedCells,
     }, { includeSnapshot: true });
     publishGameplayAction(multiplayerApi.GAME_ACTIONS?.GAIN_SCORE || 'gain_score', {
       player: scoringPlayer,
