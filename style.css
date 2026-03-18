@@ -1230,6 +1230,11 @@ body {
   display: none;
 }
 
+.prep-readiness-field[hidden],
+.secondary-btn[hidden] {
+  display: none !important;
+}
+
 .prep-color-group {
   display: grid;
   gap: 6px;
