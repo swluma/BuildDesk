@@ -34,6 +34,7 @@ const ROOM_CONTROL_ACTIONS = {
 };
 const ROOM_PREP_ACTIONS = {
   PLAYER_SETTINGS: 'player_prep_settings',
+  SETTINGS: 'room_settings',
 };
 
 const COMPUTER_DIFFICULTIES = {
@@ -420,6 +421,7 @@ const state = {
   lastRemoteActionSummary: '',
   pendingGameplaySyncSnapshot: null,
   roomPlayerSettings: [null, null],
+  applyingRemoteRoomSettings: false,
 };
 
 let settingsCopyToastHandle = null;
@@ -591,6 +593,39 @@ function sendRoomPlayerPreparationSettings(player) {
   const payload = createPlayerPreparationSettingsSnapshot(player);
   state.roomPlayerSettings[player] = payload;
   state.roomClient.sendGameAction(createSerializableAction(ROOM_PREP_ACTIONS.PLAYER_SETTINGS, payload));
+}
+
+function createRoomSettingsSnapshot() {
+  return {
+    ...getSettingsPayload(),
+    playerSettingsBySlot: [0, 1].map((player) => (
+      state.roomPlayerSettings[player] || createPlayerPreparationSettingsSnapshot(player)
+    )),
+  };
+}
+
+function applyRoomSettingsSnapshot(snapshot, { persist = true } = {}) {
+  if (!snapshot || typeof snapshot !== 'object') return;
+  applySettingsPayload(snapshot, { persist });
+  if (Array.isArray(snapshot.playerSettingsBySlot)) {
+    snapshot.playerSettingsBySlot.forEach((playerSettings, player) => {
+      if (!playerSettings) return;
+      state.roomPlayerSettings[player] = playerSettings;
+      applyPlayerPreparationSettingsSnapshot(player, playerSettings);
+    });
+    renderModeUi();
+    renderDesiredPiecePreviews();
+    renderRacks();
+    renderBoard();
+  } else {
+    state.roomPlayerSettings = [0, 1].map((player) => createPlayerPreparationSettingsSnapshot(player));
+  }
+}
+
+function sendRoomSettingsSnapshot() {
+  const createSerializableAction = multiplayerApi.createSerializableAction;
+  if (!isRoomSessionActive() || !state.roomClient || typeof createSerializableAction !== 'function') return;
+  state.roomClient.sendGameAction(createSerializableAction(ROOM_PREP_ACTIONS.SETTINGS, createRoomSettingsSnapshot()));
 }
 
 function createPreparationConfigSnapshot() {
@@ -862,6 +897,15 @@ function handleRemoteGameplayAction(payload) {
     }
     return;
   }
+  if (payload.action.type === ROOM_PREP_ACTIONS.SETTINGS) {
+    state.applyingRemoteRoomSettings = true;
+    try {
+      applyRoomSettingsSnapshot(payload.action.payload, { persist: true });
+    } finally {
+      state.applyingRemoteRoomSettings = false;
+    }
+    return;
+  }
   if (replayRemoteRoomControl(payload.action)) return;
   const snapshot = payload.action.type === (multiplayerApi.GAME_ACTIONS?.SYNC_SNAPSHOT || 'sync_snapshot')
     ? payload.action.payload?.snapshot || payload.action.payload
@@ -1092,6 +1136,7 @@ async function connectRoomSession() {
     if (getSession().isGuest) state.roomClient.setReady(true);
     const localPlayerIndex = getLocalPlayerIndex();
     if (localPlayerIndex !== null) sendRoomPlayerPreparationSettings(localPlayerIndex);
+    if (getSession().isHost) sendRoomSettingsSnapshot();
     state.roomWarning = '';
   } catch (error) {
     state.roomWarning = error?.message || 'Failed to start the local room transport.';
@@ -2230,6 +2275,7 @@ function persistSettingsToStorage() {
   } catch {
     // Ignore storage write failures and keep the in-memory settings usable.
   }
+  if (!state.applyingRemoteRoomSettings) sendRoomSettingsSnapshot();
 }
 
 function loadSettingsFromStorage() {
