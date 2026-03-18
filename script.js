@@ -30,6 +30,9 @@ const ROOM_CONTROL_ACTIONS = {
   RESUME_COUNTDOWN: 'resume_countdown',
   INTERRUPT_MATCH: 'interrupt_match',
 };
+const ROOM_PREP_ACTIONS = {
+  PLAYER_SETTINGS: 'player_prep_settings',
+};
 
 const COMPUTER_DIFFICULTIES = {
   easy: {
@@ -409,6 +412,7 @@ const state = {
   pendingRoomConnect: false,
   lastRemoteActionSummary: '',
   pendingGameplaySyncSnapshot: null,
+  roomPlayerSettings: [null, null],
 };
 
 let settingsCopyToastHandle = null;
@@ -544,7 +548,48 @@ function deserializePieceFromSync(piece) {
   return rebuiltPiece;
 }
 
+function createPlayerPreparationSettingsSnapshot(player) {
+  return {
+    player,
+    desiredPieceCells: cloneCells(state.desiredPieces[player]?.cells || defaultDesiredCells()),
+    colorThemeIndex: state.playerColorThemeIndexes[player] ?? player,
+    customColor: state.playerCustomColors[player] || null,
+    glowLevel: state.playerGlowLevels[player] ?? 0,
+  };
+}
+
+function applyPlayerPreparationSettingsSnapshot(player, snapshot) {
+  if (!snapshot || typeof snapshot !== 'object') return;
+  const desiredCells = normalizeDesiredPieceCells(snapshot.desiredPieceCells) || defaultDesiredCells();
+  state.playerColorThemeIndexes[player] = PLAYER_COLOR_THEMES[snapshot.colorThemeIndex] ? snapshot.colorThemeIndex : player;
+  state.playerCustomColors[player] = hexToRgb(snapshot.customColor) ? rgbToHex(hexToRgb(snapshot.customColor)) : null;
+  state.playerGlowLevels[player] = Number.isFinite(snapshot.glowLevel) ? Math.max(0, Math.min(1, snapshot.glowLevel)) : 0;
+  state.desiredPieces[player] = makeDesiredPiece(player, desiredCells);
+  state.racks[player] = state.racks[player].map((piece) => {
+    if (!piece) return piece;
+    if (piece.shapeId === `desired-${player}`) return makeDesiredRackPiece(player);
+    return {
+      ...piece,
+      player,
+      previewColor: getPlayerPreviewColor(player),
+      glowColor: getPlayerGlowColor(player),
+      glowStrength: getPlayerGlowLevel(player),
+    };
+  });
+}
+
+function sendRoomPlayerPreparationSettings(player) {
+  const createSerializableAction = multiplayerApi.createSerializableAction;
+  if (!isRoomSessionActive() || !state.roomClient || typeof createSerializableAction !== 'function') return;
+  const payload = createPlayerPreparationSettingsSnapshot(player);
+  state.roomPlayerSettings[player] = payload;
+  state.roomClient.sendGameAction(createSerializableAction(ROOM_PREP_ACTIONS.PLAYER_SETTINGS, payload));
+}
+
 function createPreparationConfigSnapshot() {
+  const mergedPlayerSettings = [0, 1].map((player) => (
+    state.roomPlayerSettings[player] || createPlayerPreparationSettingsSnapshot(player)
+  ));
   return {
     prepDuration: state.prepDuration,
     prepSpecialSpawnChance: state.prepSpecialSpawnChance,
@@ -555,6 +600,7 @@ function createPreparationConfigSnapshot() {
     prepDesiredSkillCost: state.prepDesiredSkillCost,
     prepDesiredSkillCooldownMs: state.prepDesiredSkillCooldownMs,
     desiredSkillEnabled: state.desiredSkillEnabled,
+    playerSettingsBySlot: mergedPlayerSettings,
   };
 }
 
@@ -569,6 +615,16 @@ function applyPreparationConfigSnapshot(config) {
   if (Number.isFinite(config.prepDesiredSkillCost)) state.prepDesiredSkillCost = config.prepDesiredSkillCost;
   if (Number.isFinite(config.prepDesiredSkillCooldownMs)) state.prepDesiredSkillCooldownMs = config.prepDesiredSkillCooldownMs;
   if (typeof config.desiredSkillEnabled === 'boolean') state.desiredSkillEnabled = config.desiredSkillEnabled;
+  if (Array.isArray(config.playerSettingsBySlot)) {
+    config.playerSettingsBySlot.forEach((playerSettings, player) => {
+      applyPlayerPreparationSettingsSnapshot(player, playerSettings);
+      state.roomPlayerSettings[player] = playerSettings;
+    });
+    renderModeUi();
+    renderDesiredPiecePreviews();
+    renderRacks();
+    renderBoard();
+  }
   renderPreparationDuration();
   renderSpecialSpawnChance();
   renderSkillTileSettings();
@@ -760,6 +816,18 @@ function publishGameplayAction(type, payload = {}, { includeSnapshot = false } =
 function handleRemoteGameplayAction(payload) {
   if (!payload?.action || payload.playerId === getSession().clientId) return;
   if (processIncomingRoomIntent(payload.action, payload.playerId)) return;
+  if (payload.action.type === ROOM_PREP_ACTIONS.PLAYER_SETTINGS) {
+    const player = Number(payload.action.payload?.player);
+    if (player === 0 || player === 1) {
+      state.roomPlayerSettings[player] = payload.action.payload;
+      applyPlayerPreparationSettingsSnapshot(player, payload.action.payload);
+      renderModeUi();
+      renderDesiredPiecePreviews();
+      renderRacks();
+      renderBoard();
+    }
+    return;
+  }
   if (replayRemoteRoomControl(payload.action)) return;
   const snapshot = payload.action.type === (multiplayerApi.GAME_ACTIONS?.SYNC_SNAPSHOT || 'sync_snapshot')
     ? payload.action.payload?.snapshot || payload.action.payload
@@ -961,6 +1029,8 @@ async function connectRoomSession() {
     });
     await state.roomClient.connect();
     if (getSession().isGuest) state.roomClient.setReady(true);
+    const localPlayerIndex = getLocalPlayerIndex();
+    if (localPlayerIndex !== null) sendRoomPlayerPreparationSettings(localPlayerIndex);
     state.roomWarning = '';
   } catch (error) {
     state.roomWarning = error?.message || 'Failed to start the local room transport.';
@@ -4487,6 +4557,7 @@ function saveDesiredDraft() {
   }
   state.desiredPieces[state.pieceEditorDraft.player] = makeDesiredPiece(state.pieceEditorDraft.player, cells);
   renderDesiredPiecePreviews();
+  sendRoomPlayerPreparationSettings(state.pieceEditorDraft.player);
   closeDesiredPieceModal();
   persistSettingsToStorage();
 }
@@ -4512,6 +4583,7 @@ function setPlayerColorTheme(player, themeIndex) {
   renderDesiredPiecePreviews();
   renderRacks();
   renderBoard();
+  sendRoomPlayerPreparationSettings(player);
   persistSettingsToStorage();
 }
 
@@ -4536,6 +4608,7 @@ function setPlayerCustomColor(player, colorHex) {
   renderDesiredPiecePreviews();
   renderRacks();
   renderBoard();
+  sendRoomPlayerPreparationSettings(player);
   persistSettingsToStorage();
 }
 
@@ -4559,6 +4632,7 @@ function setPlayerGlowLevel(player, rawValue) {
   renderDesiredPiecePreviews();
   renderRacks();
   renderBoard();
+  sendRoomPlayerPreparationSettings(player);
   persistSettingsToStorage();
 }
 
