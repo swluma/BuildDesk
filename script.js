@@ -25,6 +25,11 @@ const IDLE_PENALTY_GRACE_MS = 5000;
 const IDLE_PENALTY_TICK_MS = 1000;
 const SETTINGS_STORAGE_KEY = 'blockblast_duel_settings_v1';
 const multiplayerApi = window.BlockblastMultiplayer || {};
+const ROOM_CONTROL_ACTIONS = {
+  PAUSE_STATE: 'pause_state',
+  RESUME_COUNTDOWN: 'resume_countdown',
+  INTERRUPT_MATCH: 'interrupt_match',
+};
 
 const COMPUTER_DIFFICULTIES = {
   easy: {
@@ -629,6 +634,25 @@ function applyGameplaySyncSnapshot(snapshot, { deferWhileDragging = true } = {})
   renderPauseButton();
 }
 
+function renderEndOverlay() {
+  const [a, b] = state.scores;
+  let title = 'DRAW';
+  if (a > b) title = `${getPlayerDisplayName(0)} WINS`;
+  else if (b > a) title = `${getPlayerDisplayName(1)} WINS`;
+  endTitleEl.textContent = title;
+  endSummaryEl.innerHTML = `
+    <div>${getPlayerDisplayName(0)}: <strong>${Math.floor(a)}</strong></div>
+    <div>${getPlayerDisplayName(1)}: <strong>${Math.floor(b)}</strong></div>
+  `;
+  endOverlayEl.classList.remove('hidden');
+}
+
+function syncRoomControlAction(type, payload = {}) {
+  const createSerializableAction = multiplayerApi.createSerializableAction;
+  if (!isRoomSessionActive() || !getSession().isHost || !state.roomClient || typeof createSerializableAction !== 'function') return;
+  state.roomClient.sendGameAction(createSerializableAction(type, payload));
+}
+
 function sendRoomIntent(type, payload = {}) {
   const createSerializableAction = multiplayerApi.createSerializableAction;
   if (!isRoomSessionActive() || !state.roomClient || typeof createSerializableAction !== 'function') return false;
@@ -653,7 +677,27 @@ function processIncomingRoomIntent(action, remotePlayerId) {
   const payload = action.payload || {};
   if (remotePlayerId === getSession().clientId) return false;
   const remotePlayerIndex = getRemotePlayerIndex();
-  if (remotePlayerIndex === null) return false;
+  if (remotePlayerIndex === null && action.type !== ROOM_CONTROL_ACTIONS.PAUSE_STATE && action.type !== ROOM_CONTROL_ACTIONS.RESUME_COUNTDOWN && action.type !== ROOM_CONTROL_ACTIONS.INTERRUPT_MATCH) return false;
+
+  if (action.type === ROOM_CONTROL_ACTIONS.PAUSE_STATE) {
+    openPauseMenu();
+    return true;
+  }
+
+  if (action.type === ROOM_CONTROL_ACTIONS.RESUME_COUNTDOWN) {
+    resumePausedGame();
+    return true;
+  }
+
+  if (action.type === ROOM_CONTROL_ACTIONS.INTERRUPT_MATCH) {
+    syncRoomControlAction(ROOM_CONTROL_ACTIONS.INTERRUPT_MATCH, {
+      message: payload.message || 'The match was interrupted.',
+      returnToPreparation: Boolean(payload.returnToPreparation),
+    });
+    closePauseMenu();
+    returnToPreparation();
+    return true;
+  }
 
   if (action.type === (multiplayerApi.GAME_ACTIONS?.PLACE_PIECE || 'place_piece')) {
     const source = payload.source;
@@ -714,6 +758,7 @@ function publishGameplayAction(type, payload = {}, { includeSnapshot = false } =
 function handleRemoteGameplayAction(payload) {
   if (!payload?.action || payload.playerId === getSession().clientId) return;
   if (processIncomingRoomIntent(payload.action, payload.playerId)) return;
+  if (replayRemoteRoomControl(payload.action)) return;
   const snapshot = payload.action.type === (multiplayerApi.GAME_ACTIONS?.SYNC_SNAPSHOT || 'sync_snapshot')
     ? payload.action.payload?.snapshot || payload.action.payload
     : payload.action.payload?.snapshot || null;
@@ -724,6 +769,70 @@ function handleRemoteGameplayAction(payload) {
   if (roomStatusCopyEl && state.room?.phase === 'playing') {
     roomStatusCopyEl.textContent = `${getRoomUiModel().statusCopy} Last remote action: ${state.lastRemoteActionSummary}.`;
   }
+}
+
+function replayRemoteRoomControl(action) {
+  if (!action?.payload) return false;
+  const payload = action.payload;
+  if (action.type === ROOM_CONTROL_ACTIONS.PAUSE_STATE) {
+    state.gameActive = false;
+    state.manualPauseActive = Boolean(payload.manualPauseActive);
+    clearComputerMoveTimer();
+    clearActiveDrags();
+    if (payload.showMenu) {
+      pauseMenuOverlayEl.classList.remove('hidden');
+      hidePauseOverlay();
+    } else if (payload.message) {
+      closePauseMenu();
+      showPauseOverlay(payload.message);
+    }
+    renderSkillButtons();
+    renderPauseButton();
+    return true;
+  }
+  if (action.type === ROOM_CONTROL_ACTIONS.RESUME_COUNTDOWN) {
+    closePauseMenu();
+    startVisibleCountdown(payload.title || 'RESUME', payload.from || RESUME_COUNTDOWN, () => {
+      state.manualPauseActive = false;
+      state.gameActive = true;
+      syncIdlePenaltyTracking({ resetPlayers: [0, 1] });
+      renderSkillButtons();
+      renderPauseButton();
+      scheduleComputerMove();
+    });
+    return true;
+  }
+  if (action.type === ROOM_CONTROL_ACTIONS.INTERRUPT_MATCH) {
+    state.gameActive = false;
+    state.matchInProgress = false;
+    state.manualPauseActive = false;
+    clearComputerMoveTimer();
+    clearActiveDrags();
+    closePauseMenu();
+    if (payload.message) showPauseOverlay(payload.message);
+    renderSkillButtons();
+    renderPauseButton();
+    if (payload.returnToPreparation) {
+      setTimeout(() => {
+        hidePauseOverlay();
+        returnToPreparation();
+      }, 900);
+    }
+    return true;
+  }
+  if (action.type === (multiplayerApi.GAME_ACTIONS?.END_ROUND || 'end_round')) {
+    state.gameActive = false;
+    state.matchInProgress = false;
+    state.manualPauseActive = false;
+    clearComputerMoveTimer();
+    closePauseMenu();
+    hidePauseOverlay();
+    renderSkillButtons();
+    renderPauseButton();
+    renderEndOverlay();
+    return true;
+  }
+  return false;
 }
 
 function replayRemoteGameplayEffect(action) {
@@ -835,6 +944,13 @@ async function connectRoomSession() {
     });
     state.roomClient.on(multiplayerApi.SERVER_EVENTS?.ROOM_CLOSED || 'room_closed', () => {
       state.roomWarning = 'The room was closed. You can retry or continue locally.';
+      replayRemoteRoomControl({
+        type: ROOM_CONTROL_ACTIONS.INTERRUPT_MATCH,
+        payload: {
+          message: 'The room was closed.',
+          returnToPreparation: true,
+        },
+      });
       renderSessionUi();
     });
     await state.roomClient.connect();
@@ -3775,6 +3891,13 @@ function hidePauseOverlay() {
 
 function openPauseMenu() {
   if (!state.gameActive) return;
+  if (isRoomSessionActive() && !getSession().isHost) {
+    sendRoomIntent(ROOM_CONTROL_ACTIONS.PAUSE_STATE, {
+      manualPauseActive: true,
+      showMenu: true,
+    });
+    return;
+  }
   state.gameActive = false;
   state.manualPauseActive = true;
   clearComputerMoveTimer();
@@ -3782,6 +3905,10 @@ function openPauseMenu() {
   pauseMenuOverlayEl.classList.remove('hidden');
   renderSkillButtons();
   renderPauseButton();
+  syncRoomControlAction(ROOM_CONTROL_ACTIONS.PAUSE_STATE, {
+    manualPauseActive: true,
+    showMenu: true,
+  });
 }
 
 function closePauseMenu() {
@@ -3790,8 +3917,19 @@ function closePauseMenu() {
 
 function resumePausedGame() {
   if (!state.manualPauseActive) return;
+  if (isRoomSessionActive() && !getSession().isHost) {
+    sendRoomIntent(ROOM_CONTROL_ACTIONS.RESUME_COUNTDOWN, {
+      title: 'RESUME',
+      from: RESUME_COUNTDOWN,
+    });
+    return;
+  }
   closePauseMenu();
   renderPauseButton();
+  syncRoomControlAction(ROOM_CONTROL_ACTIONS.RESUME_COUNTDOWN, {
+    title: 'RESUME',
+    from: RESUME_COUNTDOWN,
+  });
   startVisibleCountdown('RESUME', RESUME_COUNTDOWN, () => {
     state.manualPauseActive = false;
     state.gameActive = true;
@@ -3806,6 +3944,17 @@ function quitPausedGame() {
   if (!state.manualPauseActive) return;
   const shouldQuit = window.confirm('Quit the current game and return to the setup screen?');
   if (!shouldQuit) return;
+  if (isRoomSessionActive() && !getSession().isHost) {
+    sendRoomIntent(ROOM_CONTROL_ACTIONS.INTERRUPT_MATCH, {
+      message: 'The match was ended and returned to setup.',
+      returnToPreparation: true,
+    });
+    return;
+  }
+  syncRoomControlAction(ROOM_CONTROL_ACTIONS.INTERRUPT_MATCH, {
+    message: 'The match was ended and returned to setup.',
+    returnToPreparation: true,
+  });
   closePauseMenu();
   returnToPreparation();
 }
@@ -3846,7 +3995,13 @@ function handleStuck(triggerPlayer) {
   }
   state.gameActive = false;
   clearComputerMoveTimer();
-  showPauseOverlay(`${getPlayerDisplayName(triggerPlayer)} caused a jam. Score reduced by ${percentLost}%!`);
+  const jamMessage = `${getPlayerDisplayName(triggerPlayer)} caused a jam. Score reduced by ${percentLost}%!`;
+  showPauseOverlay(jamMessage);
+  syncRoomControlAction(ROOM_CONTROL_ACTIONS.PAUSE_STATE, {
+    manualPauseActive: false,
+    showMenu: false,
+    message: jamMessage,
+  });
   clearBoardAndRefreshPieces();
 
   let remaining = RESUME_COUNTDOWN;
@@ -3860,6 +4015,10 @@ function handleStuck(triggerPlayer) {
     clearInterval(state.pauseHandle);
     state.pauseHandle = null;
     hidePauseOverlay();
+    syncRoomControlAction(ROOM_CONTROL_ACTIONS.RESUME_COUNTDOWN, {
+      title: 'RESUME',
+      from: 1,
+    });
     state.gameActive = true;
     syncIdlePenaltyTracking({ resetPlayers: [0, 1] });
     renderSkillButtons();
@@ -3923,16 +4082,8 @@ function endGame() {
   hidePauseOverlay();
   renderSkillButtons();
   renderPauseButton();
+  renderEndOverlay();
   const [a, b] = state.scores;
-  let title = 'DRAW';
-  if (a > b) title = `${getPlayerDisplayName(0)} WINS`;
-  else if (b > a) title = `${getPlayerDisplayName(1)} WINS`;
-  endTitleEl.textContent = title;
-  endSummaryEl.innerHTML = `
-    <div>${getPlayerDisplayName(0)}: <strong>${Math.floor(a)}</strong></div>
-    <div>${getPlayerDisplayName(1)}: <strong>${Math.floor(b)}</strong></div>
-  `;
-  endOverlayEl.classList.remove('hidden');
   publishGameplayAction(multiplayerApi.GAME_ACTIONS?.END_ROUND || 'end_round', {
     scores: [...state.scores],
     winner: a === b ? null : (a > b ? 0 : 1),
