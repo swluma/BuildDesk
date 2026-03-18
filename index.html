@@ -79,35 +79,7 @@
       <button id="start-btn" class="primary-btn">Start Game</button>
       <button id="settings-transfer-btn" class="secondary-btn prep-setting-btn" type="button">Load / Save Settings</button>
       <button id="fullscreen-btn" class="secondary-btn prep-setting-btn" type="button">Enter Full Screen</button>
-      <section id="room-prep-panel" class="room-prep-panel hidden" aria-live="polite">
-        <div class="room-prep-header">
-          <span id="room-mode-badge" class="room-mode-badge">HOST MODE</span>
-          <span id="room-phase-value" class="room-phase-value">CONNECTING</span>
-        </div>
-        <div class="room-prep-grid">
-          <div class="room-prep-item">
-            <span class="room-prep-label">Player</span>
-            <span id="room-player-name" class="room-prep-value">Yuki</span>
-          </div>
-          <div class="room-prep-item">
-            <span class="room-prep-label">Room</span>
-            <span id="room-code-value" class="room-prep-value">ABCD12</span>
-          </div>
-          <div class="room-prep-item">
-            <span class="room-prep-label">Connection</span>
-            <span id="room-connection-status" class="room-prep-value">CONNECTING</span>
-          </div>
-          <div class="room-prep-item">
-            <span class="room-prep-label">Opponent</span>
-            <span id="room-opponent-status" class="room-prep-value">Waiting...</span>
-          </div>
-        </div>
-        <p id="room-status-copy" class="room-status-copy">Waiting for opponent...</p>
-        <div class="room-prep-actions">
-          <button id="room-retry-btn" class="secondary-btn prep-setting-btn" type="button">Retry Room</button>
-          <button id="continue-local-btn" class="secondary-btn prep-setting-btn" type="button">Continue in Local Mode</button>
-        </div>
-      </section>
+      <button id="room-status-btn" class="secondary-btn prep-setting-btn hidden" type="button">Room Status</button>
       <div class="prep-config" aria-label="desired piece setup">
         <div class="prep-player-card">
           <div class="prep-player-meta">
@@ -200,6 +172,51 @@
       <button id="desired-skill-settings-btn" class="secondary-btn prep-setting-btn" type="button">Desired Skill: On · Cost 15 · 15s</button>
       <button id="piece-pool-btn" class="secondary-btn piece-pool-btn" type="button">Piece Types</button>
       <button id="reset-settings-btn" class="secondary-btn prep-setting-btn reset-settings-btn" type="button">Reset All Settings</button>
+    </div>
+  </div>
+
+  <div
+    id="room-status-modal"
+    class="overlay hidden room-status-modal"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="room-status-modal-title"
+  >
+    <div class="overlay-card room-status-card">
+      <div class="room-prep-header">
+        <h2 id="room-status-modal-title">ROOM STATUS</h2>
+        <span id="room-phase-value" class="room-phase-value">CONNECTING</span>
+      </div>
+      <section id="room-prep-panel" class="room-prep-panel" aria-live="polite">
+        <div class="room-prep-header">
+          <span id="room-mode-badge" class="room-mode-badge">HOST MODE</span>
+          <span id="room-connection-status" class="room-phase-value">CONNECTING</span>
+        </div>
+        <div class="room-prep-grid">
+          <div class="room-prep-item">
+            <span class="room-prep-label">Player</span>
+            <span id="room-player-name" class="room-prep-value">Yuki</span>
+          </div>
+          <div class="room-prep-item">
+            <span class="room-prep-label">Room</span>
+            <span id="room-code-value" class="room-prep-value">ABCD12</span>
+          </div>
+          <div class="room-prep-item">
+            <span class="room-prep-label">Connection</span>
+            <span id="room-connection-status-copy" class="room-prep-value">CONNECTING</span>
+          </div>
+          <div class="room-prep-item">
+            <span class="room-prep-label">Opponent</span>
+            <span id="room-opponent-status" class="room-prep-value">Waiting...</span>
+          </div>
+        </div>
+        <p id="room-status-copy" class="room-status-copy">Waiting for opponent...</p>
+        <div class="room-prep-actions">
+          <button id="room-retry-btn" class="secondary-btn prep-setting-btn" type="button">Retry Room</button>
+          <button id="continue-local-btn" class="secondary-btn prep-setting-btn" type="button">Continue in Local Mode</button>
+          <button id="room-status-close" class="primary-btn" type="button">Done</button>
+        </div>
+      </section>
     </div>
   </div>
 

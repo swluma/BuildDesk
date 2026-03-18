@@ -185,16 +185,20 @@ const endOverlayEl = document.getElementById('end-overlay');
 const endSummaryEl = document.getElementById('end-summary');
 const endTitleEl = document.getElementById('end-title');
 const startBtn = document.getElementById('start-btn');
+const roomStatusBtn = document.getElementById('room-status-btn');
+const roomStatusModalEl = document.getElementById('room-status-modal');
 const roomPrepPanelEl = document.getElementById('room-prep-panel');
 const roomModeBadgeEl = document.getElementById('room-mode-badge');
 const roomPhaseValueEl = document.getElementById('room-phase-value');
 const roomPlayerNameEl = document.getElementById('room-player-name');
 const roomCodeValueEl = document.getElementById('room-code-value');
 const roomConnectionStatusEl = document.getElementById('room-connection-status');
+const roomConnectionStatusCopyEl = document.getElementById('room-connection-status-copy');
 const roomOpponentStatusEl = document.getElementById('room-opponent-status');
 const roomStatusCopyEl = document.getElementById('room-status-copy');
 const roomRetryBtn = document.getElementById('room-retry-btn');
 const continueLocalBtn = document.getElementById('continue-local-btn');
+const roomStatusCloseBtn = document.getElementById('room-status-close');
 const restartBtn = document.getElementById('restart-btn');
 const computerModeBtnEls = [
   document.getElementById('computer-mode-btn-0'),
@@ -582,12 +586,13 @@ function renderSessionUi() {
   const roomUi = getRoomUiModel();
   document.body.classList.toggle('room-session-active', isRoomSessionActive());
   if (sessionStatusPillEl) sessionStatusPillEl.textContent = roomUi.modeLabel;
-  if (roomPrepPanelEl) roomPrepPanelEl.classList.toggle('hidden', !session.isRoomPlay || state.sessionFallbackActive);
+  if (roomStatusBtn) roomStatusBtn.classList.toggle('hidden', !session.isRoomPlay || state.sessionFallbackActive);
   if (roomModeBadgeEl) roomModeBadgeEl.textContent = roomUi.modeLabel;
   if (roomPhaseValueEl) roomPhaseValueEl.textContent = roomUi.phaseLabel;
   if (roomPlayerNameEl) roomPlayerNameEl.textContent = roomUi.playerName;
   if (roomCodeValueEl) roomCodeValueEl.textContent = roomUi.roomCode;
   if (roomConnectionStatusEl) roomConnectionStatusEl.textContent = roomUi.connectionLabel;
+  if (roomConnectionStatusCopyEl) roomConnectionStatusCopyEl.textContent = roomUi.connectionLabel;
   if (roomOpponentStatusEl) roomOpponentStatusEl.textContent = roomUi.opponentName;
   if (roomStatusCopyEl) roomStatusCopyEl.textContent = state.lastRemoteActionSummary && state.room?.phase === 'playing'
     ? `${roomUi.statusCopy} Last remote action: ${state.lastRemoteActionSummary}.`
@@ -610,6 +615,27 @@ function renderSessionUi() {
       startBtn.disabled = false;
     }
   }
+}
+
+function openRoomStatusModal() {
+  if (!isRoomSessionActive()) return;
+  closeSettingsTransferModal();
+  closeBlockStyleModal();
+  closeGameDescriptionModal();
+  closeDesiredPieceModal();
+  closePiecePoolModal();
+  closeDifficultyModal();
+  closeCustomComputerModal();
+  closeSpecialSpawnModal();
+  closeSkillTileSettingsModal();
+  closeStuckPenaltyModal();
+  closeDesiredSkillSettingsModal();
+  renderSessionUi();
+  roomStatusModalEl?.classList.remove('hidden');
+}
+
+function closeRoomStatusModal() {
+  roomStatusModalEl?.classList.add('hidden');
 }
 
 async function connectRoomSession() {
@@ -654,6 +680,7 @@ async function connectRoomSession() {
 }
 
 async function continueInLocalMode() {
+  closeRoomStatusModal();
   if (state.roomClient) {
     await state.roomClient.disconnect({ notifyServer: false });
     state.roomClient = null;
@@ -4138,6 +4165,7 @@ function beginGameFlow({ roomStartPayload = null } = {}) {
   closeDesiredSkillSettingsModal();
   closeBlockStyleModal();
   closeSettingsTransferModal();
+  closeRoomStatusModal();
   closePauseMenu();
   hidePauseOverlay();
   resetState();
@@ -4198,6 +4226,7 @@ function returnToPreparation() {
   closeDesiredSkillSettingsModal();
   closeBlockStyleModal();
   closeSettingsTransferModal();
+  closeRoomStatusModal();
   closePauseMenu();
   hidePauseOverlay();
   resetState();
@@ -4275,6 +4304,7 @@ blockStyleGlowInputEl?.addEventListener('input', (event) => {
 });
 piecePoolBtn.addEventListener('click', openPiecePoolModal);
 settingsTransferBtn.addEventListener('click', openSettingsTransferModal);
+roomStatusBtn?.addEventListener('click', openRoomStatusModal);
 fullscreenBtn?.addEventListener('click', () => {
   toggleFullscreenMode();
 });
@@ -4431,6 +4461,9 @@ blockStyleModalEl.addEventListener('click', (event) => {
 settingsTransferModalEl.addEventListener('click', (event) => {
   if (event.target === settingsTransferModalEl) closeSettingsTransferModal();
 });
+roomStatusModalEl?.addEventListener('click', (event) => {
+  if (event.target === roomStatusModalEl) closeRoomStatusModal();
+});
 difficultyModalEl.addEventListener('click', (event) => {
   if (event.target === difficultyModalEl) closeDifficultyModal();
 });
@@ -4474,6 +4507,7 @@ roomRetryBtn?.addEventListener('click', () => {
   renderSessionUi();
   connectRoomSession();
 });
+roomStatusCloseBtn?.addEventListener('click', closeRoomStatusModal);
 continueLocalBtn?.addEventListener('click', () => {
   continueInLocalMode();
 });
@@ -4520,6 +4554,8 @@ document.addEventListener('keydown', (event) => {
     closeBlockStyleModal();
   } else if (event.key === 'Escape' && !settingsTransferModalEl.classList.contains('hidden')) {
     closeSettingsTransferModal();
+  } else if (event.key === 'Escape' && !roomStatusModalEl.classList.contains('hidden')) {
+    closeRoomStatusModal();
   } else if (event.key === 'Escape' && !difficultyCustomModalEl.classList.contains('hidden')) {
     closeCustomComputerModal();
   } else if (event.key === 'Escape' && !difficultyModalEl.classList.contains('hidden')) {

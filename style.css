@@ -3465,6 +3465,16 @@ body {
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
 }
 
+.room-status-card {
+  width: min(92vw, 520px);
+}
+
+.room-status-card h2 {
+  margin: 0;
+  font-size: 1.2rem;
+  letter-spacing: 0.06em;
+}
+
 .room-prep-header {
   display: flex;
   justify-content: space-between;
@@ -3538,10 +3548,6 @@ body {
   gap: 10px;
   flex-wrap: wrap;
   margin-top: 14px;
-}
-
-body.room-session-active .prep-config {
-  margin-top: 16px;
 }
 
 body.room-session-active #start-btn[disabled] {
