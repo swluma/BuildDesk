@@ -204,6 +204,8 @@ const endOverlayEl = document.getElementById('end-overlay');
 const endSummaryEl = document.getElementById('end-summary');
 const endTitleEl = document.getElementById('end-title');
 const startBtn = document.getElementById('start-btn');
+const hostGuestReadyFieldEl = document.getElementById('host-guest-ready-field');
+const guestReadyToggleBtn = document.getElementById('guest-ready-toggle-btn');
 const roomStatusBtn = document.getElementById('room-status-btn');
 const roomStatusModalEl = document.getElementById('room-status-modal');
 const roomPrepPanelEl = document.getElementById('room-prep-panel');
@@ -503,11 +505,49 @@ function getRoomUiModel() {
       roomCode: getSession().roomCode || 'LOCAL',
       opponentName: getRemoteRoomPlayer()?.name || 'Waiting...',
       opponentConnected: Boolean(getRemoteRoomPlayer()),
-      canStart: Boolean(getSession().isHost && getRemoteRoomPlayer()),
+      localReady: Boolean(getLocalRoomPlayer()?.ready),
+      remoteReady: Boolean(getRemoteRoomPlayer()?.ready),
+      canStart: Boolean(getSession().isHost && getRemoteRoomPlayer()?.ready),
       statusCopy: state.roomWarning || 'Local single-device play is ready.',
       showContinueLocal: Boolean(getSession().isRoomPlay),
       showRetry: Boolean(getSession().isRoomPlay),
     };
+}
+
+function renderGuestReadyUi() {
+  const roomUi = getRoomUiModel();
+  const session = getSession();
+  const canShowGuestToggle = session.isGuest && session.isRoomPlay && !state.sessionFallbackActive;
+  if (guestReadyToggleBtn) {
+    guestReadyToggleBtn.hidden = !canShowGuestToggle;
+    if (canShowGuestToggle) {
+      const isReady = Boolean(roomUi.localReady);
+      const disconnected = state.room?.connectionStatus === (multiplayerApi.CONNECTION_STATUSES?.DISCONNECTED || 'disconnected');
+      guestReadyToggleBtn.textContent = `Guest: ${isReady ? 'Ready' : 'Not Ready'}`;
+      guestReadyToggleBtn.classList.toggle('active', isReady);
+      guestReadyToggleBtn.setAttribute('aria-pressed', String(isReady));
+      guestReadyToggleBtn.disabled = disconnected || !state.roomClient;
+    } else {
+      guestReadyToggleBtn.classList.remove('active');
+      guestReadyToggleBtn.setAttribute('aria-pressed', 'false');
+      guestReadyToggleBtn.disabled = true;
+    }
+  }
+
+  const canShowGuestField = session.isHost && session.isRoomPlay && !state.sessionFallbackActive;
+  if (hostGuestReadyFieldEl) {
+    hostGuestReadyFieldEl.hidden = !canShowGuestField;
+    if (canShowGuestField) {
+      const remotePlayer = getRemoteRoomPlayer();
+      const remoteReady = Boolean(roomUi.remoteReady);
+      hostGuestReadyFieldEl.textContent = remotePlayer
+        ? `Guest Readiness: ${remoteReady ? 'Ready' : 'Not Ready'}`
+        : 'Guest Readiness: Waiting...';
+      hostGuestReadyFieldEl.classList.toggle('ready', Boolean(remotePlayer && remoteReady));
+    } else {
+      hostGuestReadyFieldEl.classList.remove('ready');
+    }
+  }
 }
 
 function showSessionWarning(message) {
@@ -1040,6 +1080,7 @@ function renderSessionUi() {
   if (roomStatusCopyEl) roomStatusCopyEl.textContent = state.lastRemoteActionSummary && state.room?.phase === 'playing'
     ? `${roomUi.statusCopy} Last remote action: ${state.lastRemoteActionSummary}.`
     : roomUi.statusCopy;
+  renderGuestReadyUi();
   if (roomRetryBtn) roomRetryBtn.hidden = !roomUi.showRetry;
   if (continueLocalBtn) continueLocalBtn.hidden = !roomUi.showContinueLocal;
   if (!session.isValid && session.validationErrors.length) {
@@ -1147,7 +1188,6 @@ async function connectRoomSession() {
       renderSessionUi();
     });
     await state.roomClient.connect();
-    if (getSession().isGuest) state.roomClient.setReady(true);
     const localPlayerIndex = getLocalPlayerIndex();
     if (localPlayerIndex !== null) sendRoomPlayerPreparationSettings(localPlayerIndex);
     if (getSession().isHost) sendRoomSettingsSnapshot();
@@ -5056,6 +5096,10 @@ blockStyleGlowInputEl?.addEventListener('input', (event) => {
 });
 piecePoolBtn.addEventListener('click', openPiecePoolModal);
 settingsTransferBtn.addEventListener('click', openSettingsTransferModal);
+guestReadyToggleBtn?.addEventListener('click', () => {
+  if (!isRoomSessionActive() || !getSession().isGuest || !state.roomClient) return;
+  syncRoomReadyState(!getLocalRoomPlayer()?.ready);
+});
 roomStatusBtn?.addEventListener('click', openRoomStatusModal);
 fullscreenBtn?.addEventListener('click', () => {
   toggleFullscreenMode();

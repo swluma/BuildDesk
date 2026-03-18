@@ -1205,6 +1205,31 @@ body {
   color: #dcebf4;
 }
 
+.prep-readiness-field {
+  display: inline-flex;
+  align-items: center;
+  min-height: 32px;
+  padding: 7px 12px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #dcebf4;
+  font-size: 0.74rem;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.prep-readiness-field.ready {
+  background: rgba(141, 255, 117, 0.12);
+  border-color: rgba(141, 255, 117, 0.24);
+  color: var(--accent);
+}
+
+.prep-readiness-field.hidden {
+  display: none;
+}
+
 .prep-color-group {
   display: grid;
   gap: 6px;

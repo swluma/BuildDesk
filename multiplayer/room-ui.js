@@ -9,11 +9,17 @@
     const remotePlayer = players.find((player) => player.id !== session.clientId) || null;
     const phase = roomState?.phase || (session.isRoomPlay ? ROOM_PHASES.CONNECTING : ROOM_PHASES.IDLE);
     const connectionStatus = roomState?.connectionStatus || (session.isRoomPlay ? CONNECTION_STATUSES.CONNECTING : CONNECTION_STATUSES.OFFLINE);
-    const canStart = Boolean(session.isHost && phase === ROOM_PHASES.READY && remotePlayer);
+    const localReady = Boolean(localPlayer?.ready);
+    const remoteReady = Boolean(remotePlayer?.ready);
+    const canStart = Boolean(session.isHost && remotePlayer && remoteReady);
 
     let statusCopy = 'Local single-device play is ready.';
-    if (session.isHost) statusCopy = remotePlayer ? 'Opponent joined. Start when ready.' : 'Waiting for opponent...';
-    if (session.isGuest) statusCopy = remotePlayer ? 'Connected. Waiting for the host to start.' : 'Joining room...';
+    if (session.isHost) statusCopy = remotePlayer
+      ? (remoteReady ? 'Guest is ready. Start when ready.' : 'Guest joined. Waiting for readiness.')
+      : 'Waiting for opponent...';
+    if (session.isGuest) statusCopy = remotePlayer
+      ? (localReady ? 'You are ready. Waiting for the host to start.' : 'Toggle ready when you are set.')
+      : 'Joining room...';
     if (roomState?.error?.message) statusCopy = roomState.error.message;
     if (!session.isRoomPlay && !session.isValid && session.validationErrors.length) {
       statusCopy = `${session.validationErrors.join(' ')} Running in local mode instead.`;
@@ -27,7 +33,8 @@
       roomCode: session.roomCode || 'LOCAL',
       opponentName: remotePlayer?.name || 'Waiting...',
       opponentConnected: Boolean(remotePlayer),
-      localReady: Boolean(localPlayer?.ready),
+      localReady,
+      remoteReady,
       canStart,
       statusCopy,
       showContinueLocal: Boolean(session.isRoomPlay),

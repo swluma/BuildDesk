@@ -233,7 +233,7 @@
         if (existingPlayerIndex >= 0) record.players[existingPlayerIndex] = nextPlayer;
         else record.players.push(nextPlayer);
 
-        record.phase = record.players.length >= 2 ? ROOM_PHASES.READY : ROOM_PHASES.WAITING;
+        syncPhaseFromReadyState();
         record.closed = false;
         this.saveRoomRecord(record);
 
