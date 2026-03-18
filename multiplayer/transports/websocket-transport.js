@@ -85,13 +85,8 @@
       if (!this.socket || this.socket.readyState !== WebSocket.OPEN) return;
       const normalizedPayload = payload && typeof payload === 'object' ? payload : {};
       this.socket.send(JSON.stringify({
-        eventName,
-        event: eventName,
         type: eventName,
-        name: eventName,
         payload: normalizedPayload,
-        data: normalizedPayload,
-        ...normalizedPayload,
       }));
     }
 

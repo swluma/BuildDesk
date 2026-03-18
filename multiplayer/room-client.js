@@ -99,8 +99,10 @@
       this.transport.send(CLIENT_EVENTS.JOIN_ROOM, {
         gameId: this.session.gameId,
         roomCode: this.session.roomCode,
-        playerId: this.session.clientId,
-        playerName: this.session.playerName,
+        player: {
+          id: this.session.clientId,
+          name: this.session.playerName,
+        },
         mode: this.session.mode,
         maxPlayers: this.session.maxPlayers,
       });
@@ -245,7 +247,7 @@
         this.setRoomState({
           ...this.roomState,
           lastSyncSnapshot: payload.snapshot ?? payload.syncSnapshot ?? null,
-          lastGameAction: payload.lastGameAction || this.roomState.lastGameAction,
+          lastGameAction: payload.lastGameAction ?? payload.lastAction ?? this.roomState.lastGameAction,
         });
         this.hasRequestedSync = false;
         this.emitter.emit(SERVER_EVENTS.SYNC_STATE, payload);
