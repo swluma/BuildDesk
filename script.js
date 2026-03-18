@@ -4251,6 +4251,8 @@ function resumePausedGame() {
     });
     return;
   }
+  hideRoomWaitOverlay();
+  hidePauseOverlay();
   closePauseMenu();
   renderPauseButton();
   syncRoomControlAction(ROOM_CONTROL_ACTIONS.RESUME_COUNTDOWN, {
