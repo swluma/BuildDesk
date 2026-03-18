@@ -714,9 +714,30 @@ function handleRemoteGameplayAction(payload) {
     : payload.action.payload?.snapshot || null;
   if (snapshot) applyGameplaySyncSnapshot(snapshot);
   if (payload.action.type === (multiplayerApi.GAME_ACTIONS?.SYNC_SNAPSHOT || 'sync_snapshot')) return;
+  replayRemoteGameplayEffect(payload.action);
   state.lastRemoteActionSummary = `${payload.action.type} from ${getRemoteRoomPlayer()?.name || 'opponent'}`;
   if (roomStatusCopyEl && state.room?.phase === 'playing') {
     roomStatusCopyEl.textContent = `${getRoomUiModel().statusCopy} Last remote action: ${state.lastRemoteActionSummary}.`;
+  }
+}
+
+function replayRemoteGameplayEffect(action) {
+  if (!action || !action.payload) return;
+  const payload = action.payload;
+  if (action.type === (multiplayerApi.GAME_ACTIONS?.CLEAR_LINES || 'clear_lines') && payload.scoreResult && payload.anchorCell) {
+    showScorePopup(payload.scoreResult, payload.anchorCell, payload.player ?? null);
+    return;
+  }
+  if (action.type === (multiplayerApi.GAME_ACTIONS?.USE_SKILL || 'use_skill') && payload.skillId === 'green') {
+    showAreaClearPopup(payload.removedBlocks || 0, { x: payload.centerX, y: payload.centerY }, payload.player ?? null);
+    return;
+  }
+  if (action.type === (multiplayerApi.GAME_ACTIONS?.GAIN_SCORE || 'gain_score') && payload.reason === 'score_boost_payout') {
+    showScoreBoostPayoutPopup(payload.player ?? null, payload.points || 0);
+    return;
+  }
+  if (action.type === (multiplayerApi.GAME_ACTIONS?.APPLY_ATTACK || 'apply_attack') && payload.reason === 'jam_penalty') {
+    showJamPenaltyPopup(payload.player ?? null, payload.percentLost || 0, payload.pointsLost || 0);
   }
 }
 
@@ -3380,6 +3401,11 @@ function updateActiveSkillEffects(elapsedMs) {
     if (effect.skillId === 'red' && payout > 0) {
       addPoints(player, payout, { copyable: false });
       showScoreBoostPayoutPopup(player, payout);
+      publishGameplayAction(multiplayerApi.GAME_ACTIONS?.GAIN_SCORE || 'gain_score', {
+        player,
+        points: payout,
+        reason: 'score_boost_payout',
+      }, { includeSnapshot: true });
     } else {
       renderOwnedSkills();
     }
@@ -3623,6 +3649,7 @@ function placeDraggedPiece(drag) {
   const clearInfo = getClearInfo();
   if (clearInfo.rows.length || clearInfo.cols.length) {
     const scoreResult = scoreForClear(clearInfo.rows, clearInfo.cols);
+    const popupAnchorCell = getPopupAnchorCell(drag.piece, x, y);
     awardOwnedSkill(scoringPlayer, scoreResult.consumedSkillTiles);
     addPoints(scoringPlayer, scoreResult.points);
     publishGameplayAction(multiplayerApi.GAME_ACTIONS?.CLEAR_LINES || 'clear_lines', {
@@ -3630,13 +3657,14 @@ function placeDraggedPiece(drag) {
       rows: [...clearInfo.rows],
       cols: [...clearInfo.cols],
       scoreResult,
+      anchorCell: popupAnchorCell,
     }, { includeSnapshot: true });
     publishGameplayAction(multiplayerApi.GAME_ACTIONS?.GAIN_SCORE || 'gain_score', {
       player: scoringPlayer,
       points: scoreResult.points,
       reason: 'line_clear',
     });
-    showScorePopup(scoreResult, getPopupAnchorCell(drag.piece, x, y), scoringPlayer);
+    showScorePopup(scoreResult, popupAnchorCell, scoringPlayer);
     animateAndClear(
       clearInfo.rows,
       clearInfo.cols,
@@ -3726,8 +3754,15 @@ function handleStuck(triggerPlayer) {
   state.scores[triggerPlayer] = Math.floor(state.scores[triggerPlayer] * keptRatio);
   const nextScore = Math.floor(state.scores[triggerPlayer]);
   const pointsLost = Math.max(0, previousScore - nextScore);
+  const percentLost = getStuckPenaltyPercent();
   updateScores();
-  showJamPenaltyPopup(triggerPlayer, getStuckPenaltyPercent(), pointsLost);
+  showJamPenaltyPopup(triggerPlayer, percentLost, pointsLost);
+  publishGameplayAction(multiplayerApi.GAME_ACTIONS?.APPLY_ATTACK || 'apply_attack', {
+    player: triggerPlayer,
+    reason: 'jam_penalty',
+    percentLost,
+    pointsLost,
+  }, { includeSnapshot: true });
   if (state.prepNonStopMode) {
     clearComputerMoveTimer();
     clearBoardAndRefreshPieces();
@@ -3736,7 +3771,7 @@ function handleStuck(triggerPlayer) {
   }
   state.gameActive = false;
   clearComputerMoveTimer();
-  showPauseOverlay(`${getPlayerDisplayName(triggerPlayer)} caused a jam. Score reduced by ${getStuckPenaltyPercent()}%!`);
+  showPauseOverlay(`${getPlayerDisplayName(triggerPlayer)} caused a jam. Score reduced by ${percentLost}%!`);
   clearBoardAndRefreshPieces();
 
   let remaining = RESUME_COUNTDOWN;
