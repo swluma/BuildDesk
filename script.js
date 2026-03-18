@@ -517,6 +517,15 @@ function showSessionWarning(message) {
   sessionWarningEl.classList.toggle('hidden', !state.roomWarning);
 }
 
+function clearTransientLeaveWarning(playerName = '') {
+  if (!state.roomWarning) return;
+  const normalizedPlayerName = String(playerName || '').trim();
+  const matchesNamedWarning = normalizedPlayerName && state.roomWarning === `${normalizedPlayerName} left the room.`;
+  const matchesGenericWarning = !normalizedPlayerName && /left the room\.$/.test(state.roomWarning);
+  if (!matchesNamedWarning && !matchesGenericWarning) return;
+  state.roomWarning = '';
+}
+
 function getRoomDisplayPlayerName(player) {
   const session = getSession();
   const remotePlayer = getRemoteRoomPlayer();
@@ -1080,8 +1089,13 @@ async function connectRoomSession() {
     state.roomClient = new multiplayerApi.RoomClient(getSession());
     state.roomClient.on('statechange', (nextRoomState) => {
       state.room = nextRoomState;
+      if (getRemoteRoomPlayer()) clearTransientLeaveWarning(getRemoteRoomPlayer()?.name || '');
       renderSessionUi();
       renderModeUi();
+    });
+    state.roomClient.on(multiplayerApi.SERVER_EVENTS?.PLAYER_JOINED || 'player_joined', (payload) => {
+      clearTransientLeaveWarning(payload?.player?.name || '');
+      renderSessionUi();
     });
     state.roomClient.on(multiplayerApi.SERVER_EVENTS?.GAME_STARTED || 'game_started', (payload) => {
       applyPreparationConfigSnapshot(payload.config);
