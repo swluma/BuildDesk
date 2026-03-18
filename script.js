@@ -30,6 +30,7 @@ const ROOM_CONTROL_ACTIONS = {
   PAUSE_STATE: 'pause_state',
   RESUME_COUNTDOWN: 'resume_countdown',
   INTERRUPT_MATCH: 'interrupt_match',
+  RETURN_TO_PREPARATION: 'return_to_preparation',
 };
 const ROOM_PREP_ACTIONS = {
   PLAYER_SETTINGS: 'player_prep_settings',
@@ -727,6 +728,13 @@ function sendRoomIntent(type, payload = {}) {
   return true;
 }
 
+function syncRoomReadyState(ready = true) {
+  const disconnectedStatus = multiplayerApi.CONNECTION_STATUSES?.DISCONNECTED || 'disconnected';
+  if (!isRoomSessionActive() || !state.roomClient || state.sessionFallbackActive) return;
+  if (state.room?.connectionStatus === disconnectedStatus) return;
+  state.roomClient.setReady(ready);
+}
+
 function broadcastAuthoritativeSnapshot(reason = 'state_sync') {
   const createSerializableAction = multiplayerApi.createSerializableAction;
   if (!isRoomSessionActive() || !getSession().isHost || !state.roomClient || typeof createSerializableAction !== 'function') return;
@@ -741,7 +749,7 @@ function processIncomingRoomIntent(action, remotePlayerId) {
   const payload = action.payload || {};
   if (remotePlayerId === getSession().clientId) return false;
   const remotePlayerIndex = getRemotePlayerIndex();
-  if (remotePlayerIndex === null && action.type !== ROOM_CONTROL_ACTIONS.PAUSE_STATE && action.type !== ROOM_CONTROL_ACTIONS.RESUME_COUNTDOWN && action.type !== ROOM_CONTROL_ACTIONS.INTERRUPT_MATCH) return false;
+  if (remotePlayerIndex === null && action.type !== ROOM_CONTROL_ACTIONS.PAUSE_STATE && action.type !== ROOM_CONTROL_ACTIONS.RESUME_COUNTDOWN && action.type !== ROOM_CONTROL_ACTIONS.INTERRUPT_MATCH && action.type !== ROOM_CONTROL_ACTIONS.RETURN_TO_PREPARATION) return false;
 
   if (action.type === ROOM_CONTROL_ACTIONS.PAUSE_STATE) {
     openPauseMenu();
@@ -772,6 +780,14 @@ function processIncomingRoomIntent(action, remotePlayerId) {
     } else {
       returnToPreparation();
     }
+    return true;
+  }
+
+  if (action.type === ROOM_CONTROL_ACTIONS.RETURN_TO_PREPARATION) {
+    syncRoomControlAction(ROOM_CONTROL_ACTIONS.RETURN_TO_PREPARATION, {
+      reason: payload.reason || 'play_again',
+    });
+    returnToPreparation();
     return true;
   }
 
@@ -910,6 +926,10 @@ function replayRemoteRoomControl(action) {
         returnToPreparation();
       }, INTERRUPT_RETURN_DELAY_MS);
     }
+    return true;
+  }
+  if (action.type === ROOM_CONTROL_ACTIONS.RETURN_TO_PREPARATION) {
+    returnToPreparation();
     return true;
   }
   if (action.type === (multiplayerApi.GAME_ACTIONS?.END_ROUND || 'end_round')) {
@@ -4915,6 +4935,7 @@ function returnToPreparation() {
   renderDesiredSkillSettings();
   overlayEl.classList.remove('hidden');
   refreshLayoutMetrics();
+  syncRoomReadyState(true);
   renderPauseButton();
   renderSessionUi();
 }
@@ -5182,7 +5203,23 @@ roomStatusCloseBtn?.addEventListener('click', closeRoomStatusModal);
 continueLocalBtn?.addEventListener('click', () => {
   continueInLocalMode();
 });
-restartBtn.addEventListener('click', returnToPreparation);
+restartBtn.addEventListener('click', (event) => {
+  event.preventDefault();
+  if (!isRoomSessionActive()) {
+    returnToPreparation();
+    return;
+  }
+  if (!getSession().isHost) {
+    sendRoomIntent(ROOM_CONTROL_ACTIONS.RETURN_TO_PREPARATION, {
+      reason: 'play_again',
+    });
+    return;
+  }
+  syncRoomControlAction(ROOM_CONTROL_ACTIONS.RETURN_TO_PREPARATION, {
+    reason: 'play_again',
+  });
+  returnToPreparation();
+});
 window.addEventListener('resize', () => {
   refreshLayoutMetrics();
   renderRacks();

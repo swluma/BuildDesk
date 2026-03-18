@@ -189,6 +189,12 @@
         });
       };
 
+      const syncPhaseFromReadyState = () => {
+        const everyoneReady = record.players.length === record.maxPlayers && record.players.every((player) => player.ready);
+        record.phase = everyoneReady ? ROOM_PHASES.READY : ROOM_PHASES.WAITING;
+        record.startedAt = null;
+      };
+
       const findPlayerIndex = () => record.players.findIndex((player) => player.id === payload.playerId);
 
       if (eventName === CLIENT_EVENTS.JOIN_ROOM) {
@@ -341,7 +347,17 @@
         if (payload.action?.type === existing.GAME_ACTIONS?.SYNC_SNAPSHOT) {
           record.lastSyncSnapshot = payload.action.payload || null;
         }
+        if (payload.action?.type === (existing.GAME_ACTIONS?.END_ROUND || 'end_round')) {
+          syncPhaseFromReadyState();
+        }
+        if (
+          payload.action?.type === 'return_to_preparation'
+          || (payload.action?.type === 'interrupt_match' && payload.action?.payload?.returnToPreparation)
+        ) {
+          syncPhaseFromReadyState();
+        }
         this.saveRoomRecord(record);
+        if (record.phase !== ROOM_PHASES.PLAYING) emitRoomState();
         events.push({
           eventName: SERVER_EVENTS.GAME_ACTION,
           payload: {
