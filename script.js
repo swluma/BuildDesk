@@ -451,6 +451,13 @@ function canEditPreparationForPlayer(player) {
   return player === localPlayerIndex;
 }
 
+function canControlGameplayPlayer(player, { allowComputer = false } = {}) {
+  if (!allowComputer && isComputerPlayer(player)) return false;
+  const localPlayerIndex = getLocalPlayerIndex();
+  if (localPlayerIndex === null) return true;
+  return player === localPlayerIndex;
+}
+
 function getRoomPlayers() {
   return state.room?.players || [];
 }
@@ -512,6 +519,22 @@ function serializePieceForSync(piece) {
   };
 }
 
+function deserializePieceFromSync(piece) {
+  if (!piece || !Array.isArray(piece.cells)) return null;
+  const rebuiltPiece = makePieceFromCells(cloneCells(piece.cells), {
+    id: piece.id,
+    idPrefix: 'S',
+    player: Number.isInteger(piece.player) ? piece.player : null,
+    previewColor: piece.previewColor,
+    glowColor: piece.glowColor,
+    glowStrength: Number.isFinite(piece.glowStrength) ? piece.glowStrength : 0,
+    shapeId: piece.shapeId || undefined,
+  });
+  rebuiltPiece.desired = Boolean(piece.desired);
+  rebuiltPiece.disabled = Boolean(piece.disabled);
+  return rebuiltPiece;
+}
+
 function createPreparationConfigSnapshot() {
   return {
     prepDuration: state.prepDuration,
@@ -559,9 +582,109 @@ function createGameplaySyncSnapshot() {
   };
 }
 
+function applyGameplaySyncSnapshot(snapshot) {
+  if (!snapshot || typeof snapshot !== 'object') return;
+  clearActiveDrags();
+  state.board = Array.isArray(snapshot.board)
+    ? snapshot.board.map((row) => Array.isArray(row) ? row.map((cell) => (cell ? { ...cell } : null)) : [])
+    : state.board;
+  state.scores = Array.isArray(snapshot.scores) ? snapshot.scores.map((score) => Number(score) || 0) : state.scores;
+  state.racks = Array.isArray(snapshot.racks)
+    ? snapshot.racks.map((rack) => Array.isArray(rack) ? rack.map((piece) => deserializePieceFromSync(piece)) : [])
+    : state.racks;
+  state.specialTiles = new Set(Array.isArray(snapshot.specialTiles) ? snapshot.specialTiles : []);
+  state.skillTiles = new Map(Array.isArray(snapshot.skillTiles)
+    ? snapshot.skillTiles.map((entry) => [entry.key, SKILL_TILE_TYPES.find((skill) => skill.id === entry.skillId) || { id: entry.skillId, label: entry.skillId, color: '#ffffff' }])
+    : []);
+  state.ownedSkills = Array.isArray(snapshot.ownedSkills) ? [...snapshot.ownedSkills] : state.ownedSkills;
+  state.activeSkillEffects = Array.isArray(snapshot.activeSkillEffects)
+    ? snapshot.activeSkillEffects.map((effect) => (effect ? { ...effect } : null))
+    : state.activeSkillEffects;
+  if (Number.isFinite(snapshot.timeLeft)) state.timeLeft = snapshot.timeLeft;
+  state.matchInProgress = Boolean(snapshot.matchInProgress);
+  state.gameActive = Boolean(snapshot.gameActive);
+  renderBoard();
+  renderRacks();
+  renderSpecialSlot();
+  updateScores();
+  updateTimer();
+  renderSkillButtons();
+  renderOwnedSkills();
+  renderPauseButton();
+}
+
+function sendRoomIntent(type, payload = {}) {
+  const createSerializableAction = multiplayerApi.createSerializableAction;
+  if (!isRoomSessionActive() || !state.roomClient || typeof createSerializableAction !== 'function') return false;
+  state.roomClient.sendGameAction(createSerializableAction(type, {
+    ...payload,
+    intent: true,
+  }));
+  return true;
+}
+
+function broadcastAuthoritativeSnapshot(reason = 'state_sync') {
+  const createSerializableAction = multiplayerApi.createSerializableAction;
+  if (!isRoomSessionActive() || !getSession().isHost || !state.roomClient || typeof createSerializableAction !== 'function') return;
+  state.roomClient.sendGameAction(createSerializableAction(multiplayerApi.GAME_ACTIONS?.SYNC_SNAPSHOT || 'sync_snapshot', {
+    reason,
+    snapshot: createGameplaySyncSnapshot(),
+  }));
+}
+
+function processIncomingRoomIntent(action, remotePlayerId) {
+  if (!isRoomSessionActive() || !getSession().isHost || !action?.payload?.intent) return false;
+  const payload = action.payload || {};
+  if (remotePlayerId === getSession().clientId) return false;
+  const remotePlayerIndex = getRemotePlayerIndex();
+  if (remotePlayerIndex === null) return false;
+
+  if (action.type === (multiplayerApi.GAME_ACTIONS?.PLACE_PIECE || 'place_piece')) {
+    const source = payload.source;
+    if (!source || source.player !== remotePlayerIndex) return false;
+    const piece = state.racks[source.player]?.[source.slotIndex];
+    if (!piece || !canPlacePiece(piece, payload.x, payload.y)) return false;
+    placeDraggedPiece({
+      piece,
+      candidate: { x: payload.x, y: payload.y },
+      source,
+      originEl: state.slotEls[source.player]?.[source.slotIndex],
+    });
+    broadcastAuthoritativeSnapshot('remote_place_piece');
+    return true;
+  }
+
+  if (action.type === (multiplayerApi.GAME_ACTIONS?.USE_SKILL || 'use_skill')) {
+    if (payload.player !== remotePlayerIndex) return false;
+    if (payload.skillId === 'desired_piece') {
+      const activated = activateDesiredSkill(payload.player);
+      if (activated) broadcastAuthoritativeSnapshot('remote_desired_skill');
+      return activated;
+    }
+    if (payload.skillId === 'red') {
+      const activated = activateScoreBoostSkill(payload.player);
+      if (activated) broadcastAuthoritativeSnapshot('remote_score_boost_skill');
+      return activated;
+    }
+    if (payload.skillId === 'blue') {
+      const activated = activatePieceBlockSkill(payload.player);
+      if (activated) broadcastAuthoritativeSnapshot('remote_piece_block_skill');
+      return activated;
+    }
+    if (payload.skillId === 'green') {
+      const activated = activateAreaClearSkill(payload.player, payload.centerX, payload.centerY);
+      if (activated) broadcastAuthoritativeSnapshot('remote_area_clear_skill');
+      return activated;
+    }
+  }
+
+  return false;
+}
+
 function publishGameplayAction(type, payload = {}, { includeSnapshot = false } = {}) {
   const createSerializableAction = multiplayerApi.createSerializableAction;
   if (!isRoomSessionActive() || !state.roomClient || typeof createSerializableAction !== 'function') return;
+  if (!getSession().isHost) return;
   const actionPayload = includeSnapshot
     ? {
       ...payload,
@@ -574,11 +697,16 @@ function publishGameplayAction(type, payload = {}, { includeSnapshot = false } =
 
 function handleRemoteGameplayAction(payload) {
   if (!payload?.action || payload.playerId === getSession().clientId) return;
+  if (processIncomingRoomIntent(payload.action, payload.playerId)) return;
+  const snapshot = payload.action.type === (multiplayerApi.GAME_ACTIONS?.SYNC_SNAPSHOT || 'sync_snapshot')
+    ? payload.action.payload?.snapshot || payload.action.payload
+    : payload.action.payload?.snapshot || null;
+  if (snapshot) applyGameplaySyncSnapshot(snapshot);
+  if (payload.action.type === (multiplayerApi.GAME_ACTIONS?.SYNC_SNAPSHOT || 'sync_snapshot')) return;
   state.lastRemoteActionSummary = `${payload.action.type} from ${getRemoteRoomPlayer()?.name || 'opponent'}`;
   if (roomStatusCopyEl && state.room?.phase === 'playing') {
     roomStatusCopyEl.textContent = `${getRoomUiModel().statusCopy} Last remote action: ${state.lastRemoteActionSummary}.`;
   }
-  // TODO(blockblast-multiplayer): apply remote room actions to authoritative board state.
 }
 
 function renderSessionUi() {
@@ -1466,7 +1594,11 @@ function renderSkillButtons() {
       ? cooldownMs / state.prepDesiredSkillCooldownMs
       : 0;
     const skillAvailable = state.desiredSkillEnabled;
-    const canUse = skillAvailable && !isComputerPlayer(player) && state.gameActive && cooldownMs <= 0 && score >= state.prepDesiredSkillCost;
+    const canUse = skillAvailable
+      && canControlGameplayPlayer(player)
+      && state.gameActive
+      && cooldownMs <= 0
+      && score >= state.prepDesiredSkillCost;
 
     btn.disabled = !canUse;
     btn.classList.toggle('cooldown-active', skillAvailable && cooldownMs > 0);
@@ -1542,7 +1674,7 @@ function createOwnedSkillHandle(player, ownedSkillId) {
   handleEl.setAttribute('aria-label', `${getOwnedSkillLabel(player)} skill handle`);
   handleEl.onpointerdown = (event) => {
     if (!state.gameActive) return;
-    if (isComputerPlayer(player)) return;
+    if (!canControlGameplayPlayer(player)) return;
     if (ownedSkillId !== 'green') return;
     if (event.button !== undefined && event.button !== 0) return;
     event.preventDefault();
@@ -1557,7 +1689,7 @@ function createOwnedSkillAction(player, ownedSkillId) {
   buttonEl.type = 'button';
   buttonEl.className = `owned-skill-action skill-${ownedSkillId}`;
   buttonEl.textContent = ownedSkillId === 'green' ? 'Use' : 'Activate';
-  buttonEl.disabled = !state.gameActive || isComputerPlayer(player);
+  buttonEl.disabled = !state.gameActive || !canControlGameplayPlayer(player);
   buttonEl.addEventListener('click', () => {
     if (ownedSkillId === 'red') activateScoreBoostSkill(player);
     if (ownedSkillId === 'blue') activatePieceBlockSkill(player);
@@ -2248,6 +2380,7 @@ function refreshLayoutMetrics() {
 function attachPiecePointer(containerEl, piece, source) {
   containerEl.onpointerdown = (event) => {
     if (!state.gameActive) return;
+    if (!canControlGameplayPlayer(source.player)) return;
     if (event.button !== undefined && event.button !== 0) return;
     event.preventDefault();
     refreshLayoutMetrics();
@@ -3121,6 +3254,14 @@ function getAreaClearCells(centerX, centerY) {
 function activateAreaClearSkill(player, centerX, centerY, { allowComputer = false } = {}) {
   if (!state.gameActive) return false;
   if (!allowComputer && isComputerPlayer(player)) return false;
+  if (isRoomSessionActive() && !allowComputer && !getSession().isHost) {
+    return sendRoomIntent(multiplayerApi.GAME_ACTIONS?.USE_SKILL || 'use_skill', {
+      player,
+      skillId: 'green',
+      centerX,
+      centerY,
+    });
+  }
   if (state.ownedSkills[player] !== 'green') return false;
 
   const affectedCells = getAreaClearCells(centerX, centerY);
@@ -3159,6 +3300,12 @@ function activateAreaClearSkill(player, centerX, centerY, { allowComputer = fals
 function activateScoreBoostSkill(player, { allowComputer = false } = {}) {
   if (!state.gameActive) return false;
   if (!allowComputer && isComputerPlayer(player)) return false;
+  if (isRoomSessionActive() && !allowComputer && !getSession().isHost) {
+    return sendRoomIntent(multiplayerApi.GAME_ACTIONS?.USE_SKILL || 'use_skill', {
+      player,
+      skillId: 'red',
+    });
+  }
   if (state.ownedSkills[player] !== 'red') return false;
   if (state.activeSkillEffects[player]) return false;
 
@@ -3172,13 +3319,20 @@ function activateScoreBoostSkill(player, { allowComputer = false } = {}) {
   publishGameplayAction(multiplayerApi.GAME_ACTIONS?.USE_SKILL || 'use_skill', {
     player,
     skillId: 'red',
-  });
+  }, { includeSnapshot: true });
   return true;
 }
 
 function activatePieceBlockSkill(player, { allowComputer = false } = {}) {
   if (!state.gameActive) return false;
   if (!allowComputer && isComputerPlayer(player)) return false;
+  if (isRoomSessionActive() && !allowComputer && !getSession().isHost) {
+    return sendRoomIntent(multiplayerApi.GAME_ACTIONS?.USE_SKILL || 'use_skill', {
+      player,
+      skillId: 'blue',
+      targetPlayer: player === 0 ? 1 : 0,
+    });
+  }
   if (state.ownedSkills[player] !== 'blue') return false;
   if (state.activeSkillEffects[player]) return false;
 
@@ -3194,7 +3348,7 @@ function activatePieceBlockSkill(player, { allowComputer = false } = {}) {
     player,
     skillId: 'blue',
     targetPlayer: player === 0 ? 1 : 0,
-  });
+  }, { includeSnapshot: true });
   return true;
 }
 
@@ -3366,7 +3520,7 @@ function refillSource(source) {
     player: source.player,
     slotIndex: source.slotIndex,
     piece: serializePieceForSync(state.racks[source.player][source.slotIndex]),
-  });
+  }, { includeSnapshot: true });
 }
 
 function clearComputerMoveTimer(player = null) {
@@ -3423,6 +3577,16 @@ function runComputerTurn(player) {
 function placeDraggedPiece(drag) {
   const { x, y } = drag.candidate;
   const scoringPlayer = drag.source.player;
+  if (isRoomSessionActive() && !getSession().isHost) {
+    const sent = sendRoomIntent(multiplayerApi.GAME_ACTIONS?.PLACE_PIECE || 'place_piece', {
+      player: scoringPlayer,
+      x,
+      y,
+      source: drag.source,
+    });
+    if (sent) flashSuccess(drag.originEl);
+    return;
+  }
   putPieceOnBoard(drag.piece, x, y);
   addPoints(scoringPlayer, 1);
   publishGameplayAction(multiplayerApi.GAME_ACTIONS?.PLACE_PIECE || 'place_piece', {
@@ -3431,7 +3595,7 @@ function placeDraggedPiece(drag) {
     y,
     source: drag.source,
     piece: serializePieceForSync(drag.piece),
-  });
+  }, { includeSnapshot: true });
   publishGameplayAction(multiplayerApi.GAME_ACTIONS?.GAIN_SCORE || 'gain_score', {
     player: scoringPlayer,
     points: 1,
@@ -3539,6 +3703,7 @@ function clearBoardAndRefreshPieces() {
   renderRacks();
   renderSpecialSlot();
   syncIdlePenaltyTracking({ resetPlayers: [0, 1] });
+  broadcastAuthoritativeSnapshot('board_refresh');
 }
 
 function handleStuck(triggerPlayer) {
@@ -3605,11 +3770,18 @@ function startTimerLoop() {
   if (state.timerHandle) clearInterval(state.timerHandle);
   state.timerHandle = setInterval(() => {
     if (!state.gameActive) return;
+    if (isRoomSessionActive() && !getSession().isHost) {
+      updateTimer();
+      return;
+    }
     applyIdlePenalties();
     updateActiveSkillEffects(1000);
     updateSkillTileSpawns(1000);
     state.timeLeft -= 1;
     updateTimer();
+    if (isRoomSessionActive() && getSession().isHost) {
+      broadcastAuthoritativeSnapshot('timer_tick');
+    }
     if (state.timeLeft <= 0) endGame();
   }, 1000);
 }
@@ -4121,6 +4293,13 @@ function removeCustomShape(shapeId) {
 
 function activateDesiredSkill(player, { allowComputer = false } = {}) {
   if (!canUseDesiredSkill(player, { allowComputer })) return false;
+  if (isRoomSessionActive() && !allowComputer && !getSession().isHost) {
+    return sendRoomIntent(multiplayerApi.GAME_ACTIONS?.USE_SKILL || 'use_skill', {
+      player,
+      skillId: 'desired_piece',
+      cost: state.prepDesiredSkillCost,
+    });
+  }
   state.scores[player] -= state.prepDesiredSkillCost;
   state.skillCooldownEndsAt[player] = Date.now() + state.prepDesiredSkillCooldownMs;
   state.racks[player][Math.floor(MAX_RACK / 2)] = makeDesiredRackPiece(player);
@@ -4131,7 +4310,7 @@ function activateDesiredSkill(player, { allowComputer = false } = {}) {
     player,
     skillId: 'desired_piece',
     cost: state.prepDesiredSkillCost,
-  });
+  }, { includeSnapshot: true });
   publishGameplayAction(multiplayerApi.GAME_ACTIONS?.NEXT_PIECE_STATE || 'next_piece_state', {
     player,
     slotIndex: Math.floor(MAX_RACK / 2),
