@@ -751,6 +751,9 @@ function renderSessionUi() {
   const session = getSession();
   const roomUi = getRoomUiModel();
   document.body.classList.toggle('room-session-active', isRoomSessionActive());
+  app.classList.toggle('room-mode', isRoomSessionActive());
+  app.classList.toggle('room-host-view', isRoomSessionActive() && session.isHost);
+  app.classList.toggle('room-guest-view', isRoomSessionActive() && session.isGuest);
   if (sessionStatusPillEl) sessionStatusPillEl.textContent = roomUi.modeLabel;
   if (roomStatusBtn) roomStatusBtn.classList.toggle('hidden', !session.isRoomPlay || state.sessionFallbackActive);
   if (roomModeBadgeEl) roomModeBadgeEl.textContent = roomUi.modeLabel;
@@ -3175,7 +3178,7 @@ function showScorePopup({ lineCount, points, specialDoubled }, anchorCell, playe
 
   const popupEl = document.createElement('div');
   popupEl.className = 'score-popup';
-  if (player === 0 && !isSingleBottomHumanView()) popupEl.classList.add('player-top-clear');
+  if (player === 0 && !isSingleBottomHumanView() && !isRoomSessionActive()) popupEl.classList.add('player-top-clear');
 
   const linesEl = document.createElement('div');
   linesEl.className = 'score-popup-lines';
@@ -3213,7 +3216,7 @@ function showAreaClearPopup(points, anchorCell, player = null) {
 
   const popupEl = document.createElement('div');
   popupEl.className = 'score-popup area-clear-popup';
-  if (player === 0 && !isSingleBottomHumanView()) popupEl.classList.add('player-top-clear');
+  if (player === 0 && !isSingleBottomHumanView() && !isRoomSessionActive()) popupEl.classList.add('player-top-clear');
 
   const linesEl = document.createElement('div');
   linesEl.className = 'score-popup-lines';
@@ -3253,7 +3256,7 @@ function showJamPenaltyPopup(player, percentLost, pointsLost) {
 
   const popupEl = document.createElement('div');
   popupEl.className = 'jam-penalty-popup';
-  if (player === 0 && !app.classList.contains('vs-computer-mode')) {
+  if (player === 0 && !app.classList.contains('vs-computer-mode') && !isRoomSessionActive()) {
     popupEl.classList.add('player-top-penalty');
   }
 
@@ -3285,7 +3288,7 @@ function showScoreBoostPayoutPopup(player, points) {
   scoreBoxEl.querySelector('.score-boost-popup')?.remove();
   const popupEl = document.createElement('div');
   popupEl.className = 'score-boost-popup';
-  if (player === 0 && !app.classList.contains('vs-computer-mode')) {
+  if (player === 0 && !app.classList.contains('vs-computer-mode') && !isRoomSessionActive()) {
     popupEl.classList.add('player-top-penalty');
   }
 

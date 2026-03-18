@@ -164,6 +164,51 @@ body {
   order: 2;
 }
 
+.app.room-mode .player-top {
+  grid-template-rows: auto minmax(0, 1fr) auto;
+}
+
+.app.room-mode .player-top .player-header {
+  grid-row: 1;
+}
+
+.app.room-mode .player-top .piece-rack {
+  grid-row: 2;
+}
+
+.app.room-mode .player-top .score-row {
+  grid-row: 3;
+  grid-template-columns: minmax(98px, 1.2fr) fit-content(64px) clamp(88px, 16vw, 116px);
+}
+
+.app.room-mode .player-top .score-box,
+.app.room-mode .player-top .owned-skill-box,
+.app.room-mode .player-top .score-skill-btn {
+  transform: none;
+}
+
+.app.room-mode .player-top .score-row .score-box,
+.app.room-mode .player-top .score-row .score-skill-btn,
+.app.room-mode .player-top .score-row .owned-skill-box {
+  order: initial;
+}
+
+.app.room-mode.room-host-view {
+  grid-template-rows: auto minmax(0, 0.9fr) minmax(0, 1.38fr) minmax(0, 0.9fr);
+}
+
+.app.room-mode.room-host-view .player-top {
+  grid-row: 4;
+}
+
+.app.room-mode.room-host-view .arena {
+  grid-row: 3;
+}
+
+.app.room-mode.room-host-view .player-bottom {
+  grid-row: 2;
+}
+
 .player-header {
   display: flex;
   justify-content: flex-start;
