@@ -537,6 +537,12 @@ function showRoomNotification(message, { animate = true } = {}) {
   });
 }
 
+function appendChildren(parent, children) {
+  children.forEach((child) => {
+    parent.appendChild(child);
+  });
+}
+
 function clearTransientLeaveWarning(playerName = '') {
   if (!state.roomWarning && !state.roomNotification) return;
   const normalizedPlayerName = String(playerName || '').trim();
@@ -568,15 +574,15 @@ function createRoomMemberRow(player, index) {
   nameEl.textContent = player.name || (isHost ? 'Host' : `Guest ${index + 1}`);
   const metaEl = document.createElement('div');
   metaEl.className = 'room-member-meta';
-  metaEl.textContent = `${isHost ? 'Host' : 'Guest'} · ${connected ? 'connected' : 'left'}`;
-  bodyEl.append(nameEl, metaEl);
+  metaEl.textContent = `${isHost ? 'Host' : 'Guest'} - ${connected ? 'connected' : 'left'}`;
+  appendChildren(bodyEl, [nameEl, metaEl]);
 
-  rowEl.append(iconEl, bodyEl);
+  appendChildren(rowEl, [iconEl, bodyEl]);
   if (!isHost) {
     const readyBtn = document.createElement('button');
     readyBtn.className = 'secondary-btn room-ready-btn';
     readyBtn.type = 'button';
-    readyBtn.textContent = player.ready ? '✅ ready' : '❌ not ready';
+    readyBtn.textContent = player.ready ? '\u2705 ready' : '\u274C not ready';
     readyBtn.classList.toggle('active', Boolean(player.ready));
     readyBtn.setAttribute('aria-pressed', String(Boolean(player.ready)));
     readyBtn.disabled = !isLocalPlayer || !connected || !state.roomClient;
@@ -585,20 +591,28 @@ function createRoomMemberRow(player, index) {
         syncRoomReadyState(!getLocalRoomPlayer()?.ready);
       });
     }
-    rowEl.append(readyBtn);
+    rowEl.appendChild(readyBtn);
   }
   return rowEl;
 }
 
 function renderRoomMembers() {
   if (!roomMemberListEl) return;
-  roomMemberListEl.replaceChildren();
-  const players = getRoomPlayers();
+  roomMemberListEl.textContent = '';
+  const session = getSession();
+  const players = getRoomPlayers().length
+    ? getRoomPlayers()
+    : [{
+      id: session.clientId,
+      name: session.playerName || (session.isHost ? 'Host' : 'Guest'),
+      ready: Boolean(session.isHost),
+      connected: true,
+    }];
   if (!players.length) {
     const emptyEl = document.createElement('div');
     emptyEl.className = 'room-member-empty';
     emptyEl.textContent = 'Waiting for room members...';
-    roomMemberListEl.append(emptyEl);
+    roomMemberListEl.appendChild(emptyEl);
     return;
   }
   const sortedPlayers = [...players].sort((a, b) => {
@@ -607,7 +621,7 @@ function renderRoomMembers() {
     return 0;
   });
   sortedPlayers.forEach((player, index) => {
-    roomMemberListEl.append(createRoomMemberRow(player, index));
+    roomMemberListEl.appendChild(createRoomMemberRow(player, index));
   });
 }
 
@@ -1145,7 +1159,7 @@ function renderSessionUi() {
         startBtn.removeAttribute('aria-pressed');
       } else {
         const localReady = Boolean(roomUi.localReady);
-        startBtn.textContent = localReady ? '✅ ready' : '❌ not ready';
+        startBtn.textContent = localReady ? '\u2705 ready' : '\u274C not ready';
         startBtn.disabled = !state.roomClient;
         startBtn.classList.toggle('active', localReady);
         startBtn.setAttribute('aria-pressed', String(localReady));
@@ -5401,17 +5415,30 @@ roomReloadBtn?.addEventListener('click', () => {
 roomCopyCodeBtn?.addEventListener('click', async () => {
   const roomCode = getSession().roomCode || '';
   if (!roomCode) return;
+  const markCopyResult = (label, delay = 1000) => {
+    roomCopyCodeBtn.textContent = label;
+    window.setTimeout(() => {
+      roomCopyCodeBtn.textContent = 'Copy';
+    }, delay);
+  };
   try {
-    await navigator.clipboard?.writeText(roomCode);
-    roomCopyCodeBtn.textContent = 'Copied';
-    window.setTimeout(() => {
-      roomCopyCodeBtn.textContent = 'Copy';
-    }, 1000);
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(roomCode);
+      markCopyResult('Copied');
+      return;
+    }
+    const copyInput = document.createElement('textarea');
+    copyInput.value = roomCode;
+    copyInput.setAttribute('readonly', '');
+    copyInput.style.position = 'fixed';
+    copyInput.style.left = '-9999px';
+    document.body.appendChild(copyInput);
+    copyInput.select();
+    const copied = document.execCommand('copy');
+    document.body.removeChild(copyInput);
+    markCopyResult(copied ? 'Copied' : 'Copy failed', copied ? 1000 : 1200);
   } catch {
-    roomCopyCodeBtn.textContent = 'Copy failed';
-    window.setTimeout(() => {
-      roomCopyCodeBtn.textContent = 'Copy';
-    }, 1200);
+    markCopyResult('Copy failed', 1200);
   }
 });
 restartBtn.addEventListener('click', (event) => {
