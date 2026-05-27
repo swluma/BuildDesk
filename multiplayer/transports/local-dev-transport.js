@@ -178,6 +178,8 @@
       const roomCode = this.options.roomCode;
       const gameId = this.options.gameId;
       const currentClientId = this.options.clientId;
+      const payloadPlayerId = String(payload.playerId || payload.player?.id || currentClientId || '').trim();
+      const payloadPlayerName = String(payload.playerName || payload.player?.name || this.options.playerName || '').trim();
       const events = [];
       let record = this.loadRoomRecord() || createEmptyRoomRecord({ gameId, roomCode });
 
@@ -202,7 +204,7 @@
         record.startedAt = null;
       };
 
-      const findPlayerIndex = () => record.players.findIndex((player) => player.id === payload.playerId);
+      const findPlayerIndex = () => record.players.findIndex((player) => player.id === payloadPlayerId);
 
       if (eventName === CLIENT_EVENTS.JOIN_ROOM) {
         if (record.gameId && record.gameId !== payload.gameId) {
@@ -212,11 +214,11 @@
 
         const existingPlayerIndex = findPlayerIndex();
         if (payload.mode === 'host') {
-          if (record.hostId && record.hostId !== payload.playerId && record.players.length > 0) {
+          if (record.hostId && record.hostId !== payloadPlayerId && record.players.length > 0) {
             emitError('room_in_use', 'A host is already using this room.', currentClientId);
             return events;
           }
-          record.hostId = payload.playerId;
+          record.hostId = payloadPlayerId;
         } else if (!record.hostId) {
           emitError('room_not_found', 'The room is not available yet. Open the host URL first.', currentClientId);
           return events;
@@ -228,10 +230,10 @@
         }
 
         const nextPlayer = {
-          id: payload.playerId,
-          name: payload.playerName,
+          id: payloadPlayerId,
+          name: payloadPlayerName,
           isHost: payload.mode === 'host',
-          ready: payload.mode === 'host',
+          ready: payload.mode === 'host' || Boolean(record.players[existingPlayerIndex]?.ready),
           connected: true,
           joinedAt: Date.now(),
           lastSeenAt: Date.now(),
@@ -240,7 +242,7 @@
         if (existingPlayerIndex >= 0) record.players[existingPlayerIndex] = nextPlayer;
         else record.players.push(nextPlayer);
 
-        syncPhaseFromReadyState();
+        if (record.phase !== ROOM_PHASES.PLAYING) syncPhaseFromReadyState();
         record.closed = false;
         this.saveRoomRecord(record);
 
@@ -249,7 +251,7 @@
           targetId: currentClientId,
           payload: {
             room: this.toRoomState(record),
-            playerId: payload.playerId,
+            playerId: payloadPlayerId,
           },
         });
         if (existingPlayerIndex === -1) {
@@ -271,22 +273,12 @@
       }
 
       if (eventName === CLIENT_EVENTS.LEAVE_ROOM) {
-        const previousPlayers = record.players;
-        record.players = record.players.filter((player) => player.id !== payload.playerId);
-        const leftPlayer = previousPlayers.find((player) => player.id === payload.playerId);
-        if (!record.players.length || payload.playerId === record.hostId) {
-          const closedSnapshot = this.toRoomState(record);
-          this.clearRoomRecord();
-          events.push({
-            eventName: SERVER_EVENTS.ROOM_CLOSED,
-            payload: {
-              reason: payload.playerId === record.hostId ? 'host_left' : 'room_empty',
-              room: closedSnapshot,
-            },
-          });
-          return events;
+        const leftPlayer = record.players.find((player) => player.id === payloadPlayerId);
+        if (leftPlayer) {
+          leftPlayer.connected = false;
+          leftPlayer.lastSeenAt = Date.now();
         }
-        record.phase = ROOM_PHASES.WAITING;
+        if (record.phase !== ROOM_PHASES.PLAYING) record.phase = ROOM_PHASES.WAITING;
         this.saveRoomRecord(record);
         if (leftPlayer) {
           events.push({
@@ -307,9 +299,12 @@
           emitError('unknown_player', 'The player is not part of this room.', currentClientId);
           return events;
         }
-        record.players[playerIndex].ready = Boolean(payload.ready);
+        record.players[playerIndex].ready = record.players[playerIndex].id === record.hostId
+          ? true
+          : Boolean(payload.ready);
         record.players[playerIndex].lastSeenAt = Date.now();
-        const everyoneReady = record.players.length === record.maxPlayers && record.players.every((player) => player.ready);
+        const connectedPlayers = record.players.filter((player) => player.connected !== false);
+        const everyoneReady = connectedPlayers.length === record.maxPlayers && connectedPlayers.every((player) => player.ready);
         record.phase = everyoneReady ? ROOM_PHASES.READY : ROOM_PHASES.WAITING;
         this.saveRoomRecord(record);
         events.push({
@@ -324,12 +319,17 @@
       }
 
       if (eventName === CLIENT_EVENTS.START_GAME) {
-        if (payload.playerId !== record.hostId) {
+        if (payloadPlayerId !== record.hostId) {
           emitError('not_host', 'Only the host can start the game.', currentClientId);
           return events;
         }
-        if (record.players.length < record.maxPlayers) {
+        const connectedPlayers = record.players.filter((player) => player.connected !== false);
+        if (connectedPlayers.length < record.maxPlayers) {
           emitError('waiting_for_players', 'Waiting for the opponent to join.', currentClientId);
+          return events;
+        }
+        if (connectedPlayers.some((player) => !player.ready)) {
+          emitError('waiting_for_ready', 'Both players must be ready before starting.', currentClientId);
           return events;
         }
         record.phase = ROOM_PHASES.PLAYING;
@@ -340,7 +340,7 @@
           eventName: SERVER_EVENTS.GAME_STARTED,
           payload: {
             room: this.toRoomState(record),
-            startedBy: payload.playerId,
+            startedBy: payloadPlayerId,
             config: payload.config || null,
             syncSnapshot: payload.syncSnapshot || null,
           },
@@ -369,7 +369,7 @@
           eventName: SERVER_EVENTS.GAME_ACTION,
           payload: {
             roomCode,
-            playerId: payload.playerId,
+            playerId: payloadPlayerId,
             action: payload.action,
           },
         });

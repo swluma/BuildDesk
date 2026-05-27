@@ -227,22 +227,18 @@ const endOverlayEl = document.getElementById('end-overlay');
 const endSummaryEl = document.getElementById('end-summary');
 const endTitleEl = document.getElementById('end-title');
 const startBtn = document.getElementById('start-btn');
-const hostGuestReadyFieldEl = document.getElementById('host-guest-ready-field');
-const guestReadyToggleBtn = document.getElementById('guest-ready-toggle-btn');
 const roomStatusBtn = document.getElementById('room-status-btn');
 const roomStatusModalEl = document.getElementById('room-status-modal');
 const roomPrepPanelEl = document.getElementById('room-prep-panel');
 const roomModeBadgeEl = document.getElementById('room-mode-badge');
 const roomPhaseValueEl = document.getElementById('room-phase-value');
-const roomPlayerNameEl = document.getElementById('room-player-name');
 const roomCodeValueEl = document.getElementById('room-code-value');
-const roomConnectionStatusEl = document.getElementById('room-connection-status');
-const roomConnectionStatusCopyEl = document.getElementById('room-connection-status-copy');
-const roomOpponentStatusEl = document.getElementById('room-opponent-status');
-const roomStatusCopyEl = document.getElementById('room-status-copy');
-const roomRetryBtn = document.getElementById('room-retry-btn');
-const continueLocalBtn = document.getElementById('continue-local-btn');
+const roomCopyCodeBtn = document.getElementById('room-copy-code-btn');
+const roomMemberListEl = document.getElementById('room-member-list');
+const roomNotificationFieldEl = document.getElementById('room-notification-field');
+const roomReloadBtn = document.getElementById('room-reload-btn');
 const roomStatusCloseBtn = document.getElementById('room-status-close');
+const roomSceneNotificationEl = document.getElementById('room-scene-notification');
 const restartBtn = document.getElementById('restart-btn');
 const computerModeBtnEls = [
   document.getElementById('computer-mode-btn-0'),
@@ -417,6 +413,8 @@ const state = {
     },
   roomClient: null,
   roomWarning: '',
+  roomNotification: '',
+  roomNotificationToastHandle: null,
   sessionFallbackActive: false,
   pendingRoomConnect: false,
   lastRemoteActionSummary: '',
@@ -503,50 +501,14 @@ function getRoomUiModel() {
       playerName: getSession().playerName || 'Local Player',
       roomCode: getSession().roomCode || 'LOCAL',
       opponentName: getRemoteRoomPlayer()?.name || 'Waiting...',
-      opponentConnected: Boolean(getRemoteRoomPlayer()),
+      opponentConnected: Boolean(getRemoteRoomPlayer() && getRemoteRoomPlayer().connected !== false),
       localReady: Boolean(getLocalRoomPlayer()?.ready),
       remoteReady: Boolean(getRemoteRoomPlayer()?.ready),
-      canStart: Boolean(getSession().isHost && getRemoteRoomPlayer()?.ready),
+      canStart: Boolean(getSession().isHost && getRemoteRoomPlayer()?.ready && getRemoteRoomPlayer()?.connected !== false),
       statusCopy: state.roomWarning || 'Local single-device play is ready.',
       showContinueLocal: Boolean(getSession().isRoomPlay),
       showRetry: Boolean(getSession().isRoomPlay),
     };
-}
-
-function renderGuestReadyUi() {
-  const roomUi = getRoomUiModel();
-  const session = getSession();
-  const canShowGuestToggle = session.isGuest && session.isRoomPlay && !state.sessionFallbackActive;
-  if (guestReadyToggleBtn) {
-    guestReadyToggleBtn.hidden = !canShowGuestToggle;
-    if (canShowGuestToggle) {
-      const isReady = Boolean(roomUi.localReady);
-      const disconnected = state.room?.connectionStatus === (multiplayerApi.CONNECTION_STATUSES?.DISCONNECTED || 'disconnected');
-      guestReadyToggleBtn.textContent = `Guest: ${isReady ? 'Ready' : 'Not Ready'}`;
-      guestReadyToggleBtn.classList.toggle('active', isReady);
-      guestReadyToggleBtn.setAttribute('aria-pressed', String(isReady));
-      guestReadyToggleBtn.disabled = disconnected || !state.roomClient;
-    } else {
-      guestReadyToggleBtn.classList.remove('active');
-      guestReadyToggleBtn.setAttribute('aria-pressed', 'false');
-      guestReadyToggleBtn.disabled = true;
-    }
-  }
-
-  const canShowGuestField = session.isHost && session.isRoomPlay && !state.sessionFallbackActive;
-  if (hostGuestReadyFieldEl) {
-    hostGuestReadyFieldEl.hidden = !canShowGuestField;
-    if (canShowGuestField) {
-      const remotePlayer = getRemoteRoomPlayer();
-      const remoteReady = Boolean(roomUi.remoteReady);
-      hostGuestReadyFieldEl.textContent = remotePlayer
-        ? `Guest Readiness: ${remoteReady ? 'Ready' : 'Not Ready'}`
-        : 'Guest Readiness: Waiting...';
-      hostGuestReadyFieldEl.classList.toggle('ready', Boolean(remotePlayer && remoteReady));
-    } else {
-      hostGuestReadyFieldEl.classList.remove('ready');
-    }
-  }
 }
 
 function showSessionWarning(message) {
@@ -556,13 +518,97 @@ function showSessionWarning(message) {
   sessionWarningEl.classList.toggle('hidden', !state.roomWarning);
 }
 
+function showRoomNotification(message, { animate = true } = {}) {
+  const nextMessage = String(message || '').trim();
+  state.roomNotification = nextMessage;
+  if (roomNotificationFieldEl) {
+    roomNotificationFieldEl.textContent = nextMessage || 'No room notifications.';
+    roomNotificationFieldEl.classList.toggle('empty', !nextMessage);
+  }
+  if (!roomSceneNotificationEl || !nextMessage || !animate) return;
+  roomSceneNotificationEl.textContent = nextMessage;
+  roomSceneNotificationEl.classList.remove('show');
+  window.clearTimeout(state.roomNotificationToastHandle);
+  window.requestAnimationFrame(() => {
+    roomSceneNotificationEl.classList.add('show');
+    state.roomNotificationToastHandle = window.setTimeout(() => {
+      roomSceneNotificationEl.classList.remove('show');
+    }, 3100);
+  });
+}
+
 function clearTransientLeaveWarning(playerName = '') {
-  if (!state.roomWarning) return;
+  if (!state.roomWarning && !state.roomNotification) return;
   const normalizedPlayerName = String(playerName || '').trim();
   const matchesNamedWarning = normalizedPlayerName && state.roomWarning === `${normalizedPlayerName} left the room.`;
   const matchesGenericWarning = !normalizedPlayerName && /left the room\.$/.test(state.roomWarning);
-  if (!matchesNamedWarning && !matchesGenericWarning) return;
-  state.roomWarning = '';
+  const matchesNamedNotification = normalizedPlayerName && state.roomNotification === `${normalizedPlayerName} left the room.`;
+  const matchesGenericNotification = !normalizedPlayerName && /left the room\.$/.test(state.roomNotification);
+  if (matchesNamedWarning || matchesGenericWarning) state.roomWarning = '';
+  if (matchesNamedNotification || matchesGenericNotification) showRoomNotification('', { animate: false });
+}
+
+function createRoomMemberRow(player, index) {
+  const session = getSession();
+  const isHost = player.id === state.room?.hostId;
+  const isLocalPlayer = player.id === session.clientId;
+  const connected = player.connected !== false;
+  const rowEl = document.createElement('div');
+  rowEl.className = 'room-member-row';
+  rowEl.classList.toggle('disconnected', !connected);
+
+  const iconEl = document.createElement('div');
+  iconEl.className = 'room-member-icon';
+  iconEl.textContent = isHost ? 'H' : 'G';
+
+  const bodyEl = document.createElement('div');
+  bodyEl.className = 'room-member-body';
+  const nameEl = document.createElement('div');
+  nameEl.className = 'room-member-name';
+  nameEl.textContent = player.name || (isHost ? 'Host' : `Guest ${index + 1}`);
+  const metaEl = document.createElement('div');
+  metaEl.className = 'room-member-meta';
+  metaEl.textContent = `${isHost ? 'Host' : 'Guest'} · ${connected ? 'connected' : 'left'}`;
+  bodyEl.append(nameEl, metaEl);
+
+  rowEl.append(iconEl, bodyEl);
+  if (!isHost) {
+    const readyBtn = document.createElement('button');
+    readyBtn.className = 'secondary-btn room-ready-btn';
+    readyBtn.type = 'button';
+    readyBtn.textContent = player.ready ? '✅ ready' : '❌ not ready';
+    readyBtn.classList.toggle('active', Boolean(player.ready));
+    readyBtn.setAttribute('aria-pressed', String(Boolean(player.ready)));
+    readyBtn.disabled = !isLocalPlayer || !connected || !state.roomClient;
+    if (isLocalPlayer) {
+      readyBtn.addEventListener('click', () => {
+        syncRoomReadyState(!getLocalRoomPlayer()?.ready);
+      });
+    }
+    rowEl.append(readyBtn);
+  }
+  return rowEl;
+}
+
+function renderRoomMembers() {
+  if (!roomMemberListEl) return;
+  roomMemberListEl.replaceChildren();
+  const players = getRoomPlayers();
+  if (!players.length) {
+    const emptyEl = document.createElement('div');
+    emptyEl.className = 'room-member-empty';
+    emptyEl.textContent = 'Waiting for room members...';
+    roomMemberListEl.append(emptyEl);
+    return;
+  }
+  const sortedPlayers = [...players].sort((a, b) => {
+    if (a.id === state.room?.hostId) return -1;
+    if (b.id === state.room?.hostId) return 1;
+    return 0;
+  });
+  sortedPlayers.forEach((player, index) => {
+    roomMemberListEl.append(createRoomMemberRow(player, index));
+  });
 }
 
 function getRoomDisplayPlayerName(player) {
@@ -968,9 +1014,6 @@ function handleRemoteGameplayAction(payload) {
   if (payload.action.type === (multiplayerApi.GAME_ACTIONS?.SYNC_SNAPSHOT || 'sync_snapshot')) return;
   replayRemoteGameplayEffect(payload.action);
   state.lastRemoteActionSummary = `${payload.action.type} from ${getRemoteRoomPlayer()?.name || 'opponent'}`;
-  if (roomStatusCopyEl && state.room?.phase === 'playing') {
-    roomStatusCopyEl.textContent = `${getRoomUiModel().statusCopy} Last remote action: ${state.lastRemoteActionSummary}.`;
-  }
 }
 
 function replayRemoteRoomControl(action) {
@@ -1083,17 +1126,9 @@ function renderSessionUi() {
   if (roomStatusBtn) roomStatusBtn.classList.toggle('hidden', !session.isRoomPlay || state.sessionFallbackActive);
   if (roomModeBadgeEl) roomModeBadgeEl.textContent = roomUi.modeLabel;
   if (roomPhaseValueEl) roomPhaseValueEl.textContent = roomUi.phaseLabel;
-  if (roomPlayerNameEl) roomPlayerNameEl.textContent = roomUi.playerName;
   if (roomCodeValueEl) roomCodeValueEl.textContent = roomUi.roomCode;
-  if (roomConnectionStatusEl) roomConnectionStatusEl.textContent = roomUi.connectionLabel;
-  if (roomConnectionStatusCopyEl) roomConnectionStatusCopyEl.textContent = roomUi.connectionLabel;
-  if (roomOpponentStatusEl) roomOpponentStatusEl.textContent = roomUi.opponentName;
-  if (roomStatusCopyEl) roomStatusCopyEl.textContent = state.lastRemoteActionSummary && state.room?.phase === 'playing'
-    ? `${roomUi.statusCopy} Last remote action: ${state.lastRemoteActionSummary}.`
-    : roomUi.statusCopy;
-  renderGuestReadyUi();
-  if (roomRetryBtn) roomRetryBtn.hidden = !roomUi.showRetry;
-  if (continueLocalBtn) continueLocalBtn.hidden = !roomUi.showContinueLocal;
+  renderRoomMembers();
+  showRoomNotification(state.roomNotification, { animate: false });
   if (!session.isValid && session.validationErrors.length) {
     showSessionWarning(`${session.validationErrors.join(' ')} Running in local mode instead.`);
   } else if (!state.roomWarning) {
@@ -1103,11 +1138,23 @@ function renderSessionUi() {
   }
   if (startBtn) {
     if (session.isRoomPlay && !state.sessionFallbackActive) {
-      startBtn.textContent = session.isHost ? 'Start Match' : 'Waiting for Host';
-      startBtn.disabled = !session.isHost || !roomUi.canStart;
+      if (session.isHost) {
+        startBtn.textContent = 'Start Match';
+        startBtn.disabled = !roomUi.canStart;
+        startBtn.classList.remove('active');
+        startBtn.removeAttribute('aria-pressed');
+      } else {
+        const localReady = Boolean(roomUi.localReady);
+        startBtn.textContent = localReady ? '✅ ready' : '❌ not ready';
+        startBtn.disabled = !state.roomClient;
+        startBtn.classList.toggle('active', localReady);
+        startBtn.setAttribute('aria-pressed', String(localReady));
+      }
     } else {
       startBtn.textContent = 'Start Game';
       startBtn.disabled = false;
+      startBtn.classList.remove('active');
+      startBtn.removeAttribute('aria-pressed');
     }
   }
 }
@@ -1142,15 +1189,18 @@ async function connectRoomSession() {
     state.lastRemoteActionSummary = '';
     state.roomClient.on('statechange', (nextRoomState) => {
       state.room = nextRoomState;
-      if (getRemoteRoomPlayer()) clearTransientLeaveWarning(getRemoteRoomPlayer()?.name || '');
+      const remotePlayer = getRemoteRoomPlayer();
+      if (remotePlayer && remotePlayer.connected !== false) clearTransientLeaveWarning(remotePlayer.name || '');
       renderSessionUi();
       renderModeUi();
     });
     state.roomClient.on(multiplayerApi.SERVER_EVENTS?.PLAYER_JOINED || 'player_joined', (payload) => {
-      clearTransientLeaveWarning(payload?.player?.name || '');
+      const playerName = payload?.player?.name || '';
+      clearTransientLeaveWarning(playerName);
       renderSessionUi();
     });
     state.roomClient.on(multiplayerApi.SERVER_EVENTS?.GAME_STARTED || 'game_started', (payload) => {
+      closeRoomStatusModal();
       applyPreparationConfigSnapshot(payload.config);
       beginGameFlow({ roomStartPayload: payload });
     });
@@ -1175,6 +1225,8 @@ async function connectRoomSession() {
     });
     state.roomClient.on(multiplayerApi.SERVER_EVENTS?.PLAYER_LEFT || 'player_left', (payload) => {
       const playerName = payload?.player?.name || 'The other player';
+      state.roomWarning = `${playerName} left the room.`;
+      showRoomNotification(state.roomWarning);
       if (state.matchInProgress || state.room?.phase === 'playing') {
         replayRemoteRoomControl({
           type: ROOM_CONTROL_ACTIONS.INTERRUPT_MATCH,
@@ -1187,13 +1239,12 @@ async function connectRoomSession() {
             returnToPreparation: true,
           },
         });
-      } else {
-        state.roomWarning = `${playerName} left the room.`;
       }
       renderSessionUi();
     });
     state.roomClient.on(multiplayerApi.SERVER_EVENTS?.ROOM_CLOSED || 'room_closed', () => {
-      state.roomWarning = 'The room was closed. You can retry or continue locally.';
+      state.roomWarning = 'The host left the room.';
+      showRoomNotification(state.roomWarning);
       replayRemoteRoomControl({
         type: ROOM_CONTROL_ACTIONS.INTERRUPT_MATCH,
         payload: {
@@ -1212,6 +1263,7 @@ async function connectRoomSession() {
     if (localPlayerIndex !== null) sendRoomPlayerPreparationSettings(localPlayerIndex);
     if (getSession().isHost) sendRoomSettingsSnapshot();
     state.roomWarning = '';
+    if (isRoomSessionActive()) openRoomStatusModal();
   } catch (error) {
     state.roomWarning = error?.message || 'Failed to connect to the room server.';
   } finally {
@@ -5022,6 +5074,9 @@ function beginGameFlow({ roomStartPayload = null } = {}) {
 function startGameFlow() {
   if (isRoomSessionActive()) {
     if (!getSession().isHost || !state.roomClient) {
+      if (getSession().isGuest && state.roomClient) {
+        syncRoomReadyState(!getLocalRoomPlayer()?.ready);
+      }
       renderSessionUi();
       return;
     }
@@ -5140,10 +5195,6 @@ blockStyleGlowInputEl?.addEventListener('input', (event) => {
 });
 piecePoolBtn.addEventListener('click', openPiecePoolModal);
 settingsTransferBtn.addEventListener('click', openSettingsTransferModal);
-guestReadyToggleBtn?.addEventListener('click', () => {
-  if (!isRoomSessionActive() || !getSession().isGuest || !state.roomClient) return;
-  syncRoomReadyState(!getLocalRoomPlayer()?.ready);
-});
 roomStatusBtn?.addEventListener('click', openRoomStatusModal);
 fullscreenBtn?.addEventListener('click', () => {
   toggleFullscreenMode();
@@ -5342,14 +5393,26 @@ gameDescriptionModalEl.addEventListener('click', (event) => {
   if (event.target === gameDescriptionModalEl) closeGameDescriptionModal();
 });
 startBtn.addEventListener('click', startGameFlow);
-roomRetryBtn?.addEventListener('click', () => {
+roomStatusCloseBtn?.addEventListener('click', closeRoomStatusModal);
+roomReloadBtn?.addEventListener('click', () => {
   state.roomWarning = '';
-  renderSessionUi();
   connectRoomSession();
 });
-roomStatusCloseBtn?.addEventListener('click', closeRoomStatusModal);
-continueLocalBtn?.addEventListener('click', () => {
-  continueInLocalMode();
+roomCopyCodeBtn?.addEventListener('click', async () => {
+  const roomCode = getSession().roomCode || '';
+  if (!roomCode) return;
+  try {
+    await navigator.clipboard?.writeText(roomCode);
+    roomCopyCodeBtn.textContent = 'Copied';
+    window.setTimeout(() => {
+      roomCopyCodeBtn.textContent = 'Copy';
+    }, 1000);
+  } catch {
+    roomCopyCodeBtn.textContent = 'Copy failed';
+    window.setTimeout(() => {
+      roomCopyCodeBtn.textContent = 'Copy';
+    }, 1200);
+  }
 });
 restartBtn.addEventListener('click', (event) => {
   event.preventDefault();

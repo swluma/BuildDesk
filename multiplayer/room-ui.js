@@ -11,7 +11,8 @@
     const connectionStatus = roomState?.connectionStatus || (session.isRoomPlay ? CONNECTION_STATUSES.CONNECTING : CONNECTION_STATUSES.OFFLINE);
     const localReady = Boolean(localPlayer?.ready);
     const remoteReady = Boolean(remotePlayer?.ready);
-    const canStart = Boolean(session.isHost && remotePlayer && remoteReady);
+    const remoteConnected = remotePlayer?.connected !== false;
+    const canStart = Boolean(session.isHost && remotePlayer && remoteConnected && remoteReady);
 
     let statusCopy = 'Local single-device play is ready.';
     if (session.isRoomPlay && session.usingLocalDevRoomTransport) {
@@ -40,13 +41,13 @@
       playerName: session.playerName || 'Local Player',
       roomCode: session.roomCode || 'LOCAL',
       opponentName: remotePlayer?.name || 'Waiting...',
-      opponentConnected: Boolean(remotePlayer),
+      opponentConnected: Boolean(remotePlayer && remoteConnected),
       localReady,
       remoteReady,
       canStart,
       statusCopy,
-      showContinueLocal: Boolean(session.isRoomPlay),
-      showRetry: Boolean(session.isRoomPlay),
+      showContinueLocal: false,
+      showRetry: false,
     };
   }
 

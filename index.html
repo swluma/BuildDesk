@@ -75,8 +75,6 @@
       <p>Two players race on the same board.</p>
       <p>Long-press a piece, slide it to the board, then release to place it.</p>
       <div id="session-warning" class="session-warning hidden" role="status"></div>
-      <div id="host-guest-ready-field" class="prep-readiness-field" aria-live="polite" hidden>Guest Readiness: Waiting...</div>
-      <button id="guest-ready-toggle-btn" class="secondary-btn prep-setting-btn" type="button" hidden>Guest: Not Ready</button>
       <button id="room-status-btn" class="secondary-btn prep-setting-btn hidden" type="button">Room Status</button>
       <button id="game-description-btn" class="secondary-btn prep-description-btn" type="button">Game Description</button>
       <button id="start-btn" class="primary-btn">Start Game</button>
@@ -187,40 +185,27 @@
     <div class="overlay-card room-status-card">
       <div class="room-prep-header">
         <h2 id="room-status-modal-title">ROOM STATUS</h2>
-        <span id="room-phase-value" class="room-phase-value">CONNECTING</span>
+        <button id="room-status-close" class="room-close-btn" type="button" aria-label="Close room status">✖</button>
       </div>
       <section id="room-prep-panel" class="room-prep-panel" aria-live="polite">
         <div class="room-prep-header">
           <span id="room-mode-badge" class="room-mode-badge">HOST MODE</span>
-          <span id="room-connection-status" class="room-phase-value">CONNECTING</span>
+          <span id="room-phase-value" class="room-phase-value">CONNECTING</span>
         </div>
-        <div class="room-prep-grid">
-          <div class="room-prep-item">
-            <span class="room-prep-label">Player</span>
-            <span id="room-player-name" class="room-prep-value">Yuki</span>
-          </div>
-          <div class="room-prep-item">
-            <span class="room-prep-label">Room</span>
-            <span id="room-code-value" class="room-prep-value">ABCD12</span>
-          </div>
-          <div class="room-prep-item">
-            <span class="room-prep-label">Connection</span>
-            <span id="room-connection-status-copy" class="room-prep-value">CONNECTING</span>
-          </div>
-          <div class="room-prep-item">
-            <span class="room-prep-label">Opponent</span>
-            <span id="room-opponent-status" class="room-prep-value">Waiting...</span>
-          </div>
+        <div class="room-code-row">
+          <span id="room-code-value" class="room-code-text">ABCD12</span>
+          <button id="room-copy-code-btn" class="secondary-btn room-copy-btn" type="button">Copy</button>
         </div>
-        <p id="room-status-copy" class="room-status-copy">Waiting for opponent...</p>
+        <div id="room-member-list" class="room-member-list"></div>
+        <div id="room-notification-field" class="room-notification-field">No room notifications.</div>
         <div class="room-prep-actions">
-          <button id="room-retry-btn" class="secondary-btn prep-setting-btn" type="button">Retry Room</button>
-          <button id="continue-local-btn" class="secondary-btn prep-setting-btn" type="button">Continue in Local Mode</button>
-          <button id="room-status-close" class="primary-btn" type="button">Done</button>
+          <button id="room-reload-btn" class="secondary-btn prep-setting-btn" type="button">Reload</button>
         </div>
       </section>
     </div>
   </div>
+
+  <div id="room-scene-notification" class="room-scene-notification" role="status" aria-live="polite"></div>
 
   <div
     id="game-description-modal"

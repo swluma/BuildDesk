@@ -81,7 +81,7 @@ function sendResponse(res, statusCode, headers, body) {
 }
 
 function sendSocketMessage(socket, type, payload) {
-  if (socket.readyState !== WebSocket.OPEN) return;
+  if (!socket || socket.readyState !== WebSocket.OPEN) return;
   socket.send(JSON.stringify({ type, payload }));
 }
 
@@ -90,6 +90,7 @@ function clonePlayer(player) {
     id: player.id,
     name: player.name,
     ready: Boolean(player.ready),
+    connected: player.connected !== false,
   };
 }
 
@@ -171,33 +172,23 @@ function closeRoom(room, message) {
 }
 
 function removePlayerFromRoom(room, playerId) {
-  const index = room.players.findIndex((player) => player.id === playerId);
-  if (index === -1) return;
-
-  const [removed] = room.players.splice(index, 1);
-  if (removed?.socket) {
-    removed.socket.roomCode = null;
-    removed.socket.playerId = null;
+  const player = room.players.find((entry) => entry.id === playerId);
+  if (!player) return;
+  if (player.socket) {
+    player.socket.roomCode = null;
+    player.socket.playerId = null;
   }
-
-  if (room.players.length === 0) {
-    rooms.delete(room.roomCode);
-    return;
-  }
-
-  if (room.hostId === playerId) {
-    closeRoom(room, 'The host left the room.');
-    return;
-  }
-
-  if (room.phase === 'playing') {
+  player.connected = false;
+  player.socket = null;
+  player.lastHeartbeatAt = Date.now();
+  if (room.phase !== 'playing') {
     room.phase = 'waiting';
   }
 
   broadcastRoom(room, SERVER_ROOM_EVENTS.PLAYER_LEFT, {
     roomCode: room.roomCode,
     playerId,
-    player: clonePlayer(removed),
+    player: clonePlayer(player),
     room: createRoomSnapshot(room),
   });
   broadcastRoomState(room);
@@ -243,6 +234,9 @@ function joinRoom(socket, payload) {
   if (existingPlayer) {
     existingPlayer.socket = socket;
     existingPlayer.name = playerName;
+    existingPlayer.connected = true;
+    existingPlayer.ready = mode === 'host' ? true : Boolean(existingPlayer.ready);
+    existingPlayer.lastHeartbeatAt = Date.now();
   } else {
     if (room.players.length >= MAX_PLAYERS_PER_ROOM) {
       sendRoomError(socket, 'ROOM_FULL', 'This room is already full.');
@@ -258,6 +252,7 @@ function joinRoom(socket, payload) {
       id: playerId,
       name: playerName,
       ready: mode === 'host',
+      connected: true,
       socket,
       lastHeartbeatAt: Date.now(),
     });
@@ -296,7 +291,11 @@ function handlePlayerReady(socket, payload) {
   }
 
   const { room, player } = match;
+  if (player.id === room.hostId) {
+    player.ready = true;
+  } else {
   player.ready = Boolean(payload?.ready);
+  }
   player.lastHeartbeatAt = Date.now();
 
   broadcastRoom(room, SERVER_ROOM_EVENTS.PLAYER_READY, {
@@ -323,12 +322,13 @@ function handleStartGame(socket, payload) {
     return;
   }
 
-  if (room.players.length !== MAX_PLAYERS_PER_ROOM) {
+  const connectedPlayers = room.players.filter((entry) => entry.connected !== false);
+  if (connectedPlayers.length !== MAX_PLAYERS_PER_ROOM) {
     sendRoomError(socket, 'NOT_ENOUGH_PLAYERS', 'Two players are required to start.');
     return;
   }
 
-  if (room.players.some((entry) => !entry.ready)) {
+  if (connectedPlayers.some((entry) => !entry.ready)) {
     sendRoomError(socket, 'PLAYERS_NOT_READY', 'Both players must be ready before starting.');
     return;
   }
@@ -409,6 +409,7 @@ function handleSyncRequest(socket) {
 function handleHeartbeat(socket) {
   const match = getPlayerBySocket(socket);
   if (!match) return;
+  match.player.connected = true;
   match.player.lastHeartbeatAt = Date.now();
 }
 
