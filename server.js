@@ -277,6 +277,7 @@ function joinRoom(socket, payload) {
       id: playerId,
       name: playerName,
       ready: room.players.find((player) => player.id === playerId)?.ready || false,
+      connected: true,
     },
     room: createRoomSnapshot(room),
   });

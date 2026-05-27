@@ -415,6 +415,7 @@ const state = {
   roomWarning: '',
   roomNotification: '',
   roomNotificationToastHandle: null,
+  roomDisconnectedPlayerIds: new Set(),
   sessionFallbackActive: false,
   pendingRoomConnect: false,
   lastRemoteActionSummary: '',
@@ -521,6 +522,12 @@ function showSessionWarning(message) {
 function showRoomNotification(message, { animate = true } = {}) {
   const nextMessage = String(message || '').trim();
   state.roomNotification = nextMessage;
+  if (!nextMessage) {
+    window.clearTimeout(state.roomNotificationToastHandle);
+    state.roomNotificationToastHandle = null;
+    roomSceneNotificationEl?.classList.remove('show');
+    if (roomSceneNotificationEl) roomSceneNotificationEl.textContent = '';
+  }
   if (roomNotificationFieldEl) {
     roomNotificationFieldEl.textContent = nextMessage || 'No room notifications.';
     roomNotificationFieldEl.classList.toggle('empty', !nextMessage);
@@ -552,6 +559,43 @@ function clearTransientLeaveWarning(playerName = '') {
   const matchesGenericNotification = !normalizedPlayerName && /left the room\.$/.test(state.roomNotification);
   if (matchesNamedWarning || matchesGenericWarning) state.roomWarning = '';
   if (matchesNamedNotification || matchesGenericNotification) showRoomNotification('', { animate: false });
+}
+
+function getRoomPresencePlayerName(player) {
+  return String(player?.name || (player?.id === state.room?.hostId ? 'The host' : 'The guest')).trim();
+}
+
+function notifyRoomPlayerLeft(player) {
+  if (!player?.id || player.id === getSession().clientId) return;
+  if (state.roomDisconnectedPlayerIds.has(player.id)) return;
+  state.roomDisconnectedPlayerIds.add(player.id);
+  const message = `${getRoomPresencePlayerName(player)} left the room.`;
+  state.roomWarning = message;
+  showRoomNotification(message);
+}
+
+function markRoomPlayerReturned(player) {
+  if (!player?.id || player.id === getSession().clientId) return;
+  state.roomDisconnectedPlayerIds.delete(player.id);
+  clearTransientLeaveWarning(getRoomPresencePlayerName(player));
+}
+
+function reconcileRoomPresenceNotifications(previousRoom, nextRoom) {
+  if (!isRoomSessionActive() || !nextRoom?.players) return;
+  const localId = getSession().clientId;
+  const previousPlayers = new Map((previousRoom?.players || []).map((player) => [player.id, player]));
+  nextRoom.players.forEach((player) => {
+    if (!player?.id || player.id === localId) return;
+    const wasConnected = previousPlayers.has(player.id)
+      ? previousPlayers.get(player.id).connected !== false
+      : !state.roomDisconnectedPlayerIds.has(player.id);
+    const isConnected = player.connected !== false;
+    if (!isConnected && wasConnected) {
+      notifyRoomPlayerLeft(player);
+    } else if (isConnected) {
+      markRoomPlayerReturned(player);
+    }
+  });
 }
 
 function createRoomMemberRow(player, index) {
@@ -1202,14 +1246,15 @@ async function connectRoomSession() {
     state.roomClient = new multiplayerApi.RoomClient(getSession());
     state.lastRemoteActionSummary = '';
     state.roomClient.on('statechange', (nextRoomState) => {
+      const previousRoomState = state.room;
+      reconcileRoomPresenceNotifications(previousRoomState, nextRoomState);
       state.room = nextRoomState;
-      const remotePlayer = getRemoteRoomPlayer();
-      if (remotePlayer && remotePlayer.connected !== false) clearTransientLeaveWarning(remotePlayer.name || '');
       renderSessionUi();
       renderModeUi();
     });
     state.roomClient.on(multiplayerApi.SERVER_EVENTS?.PLAYER_JOINED || 'player_joined', (payload) => {
       const playerName = payload?.player?.name || '';
+      if (payload?.player?.id) state.roomDisconnectedPlayerIds.delete(payload.player.id);
       clearTransientLeaveWarning(playerName);
       renderSessionUi();
     });
@@ -1238,10 +1283,10 @@ async function connectRoomSession() {
       renderSessionUi();
     });
     state.roomClient.on(multiplayerApi.SERVER_EVENTS?.PLAYER_LEFT || 'player_left', (payload) => {
-      const playerName = payload?.player?.name || 'The other player';
-      state.roomWarning = `${playerName} left the room.`;
-      showRoomNotification(state.roomWarning);
+      const leftPlayer = payload?.player || null;
+      notifyRoomPlayerLeft(leftPlayer || { id: payload?.playerId || 'remote', name: 'The other player' });
       if (state.matchInProgress || state.room?.phase === 'playing') {
+        const playerName = getRoomPresencePlayerName(leftPlayer) || 'The other player';
         replayRemoteRoomControl({
           type: ROOM_CONTROL_ACTIONS.INTERRUPT_MATCH,
           payload: {
